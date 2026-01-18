@@ -13,7 +13,6 @@
 #include <any>
 #include <typeindex>
 #include "ipc_common.hpp"
-#define HYPRLAND_PLUGIN
 #include "config_writer.hpp"
 
 inline HANDLE PHANDLE = nullptr;

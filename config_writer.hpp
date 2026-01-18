@@ -1,19 +1,14 @@
 #pragma once
 #include <string>
 #include <fstream>
-#include <sstream>
 #include <vector>
 #include <regex>
 #include <map>
 #include <filesystem>
 #include <cstdlib>
-#include <optional>
 #include <glob.h>
-
-// Use Hyprland's built-in path resolution when available (in plugin context)
-#ifdef HYPRLAND_PLUGIN
 #include <hyprland/src/helpers/MiscFunctions.hpp>
-#endif
+#include <hyprland/src/config/ConfigManager.hpp>
 
 namespace ConfigWriter {
 
@@ -23,7 +18,6 @@ inline std::string expandEnvVars(const std::string& path) {
     size_t pos = 0;
     
     while ((pos = result.find('$', pos)) != std::string::npos) {
-        // Find end of variable name
         size_t end = pos + 1;
         while (end < result.length() && (std::isalnum(result[end]) || result[end] == '_')) {
             end++;
@@ -43,7 +37,6 @@ inline std::string expandEnvVars(const std::string& path) {
         }
     }
     
-    // Handle ~ at start
     if (!result.empty() && result[0] == '~') {
         const char* home = std::getenv("HOME");
         if (home) {
@@ -54,55 +47,10 @@ inline std::string expandEnvVars(const std::string& path) {
     return result;
 }
 
-// Resolve path relative to a base path (like Hyprland's absolutePath)
-inline std::string resolvePath(const std::string& path, const std::string& basePath) {
-#ifdef HYPRLAND_PLUGIN
-    // Use Hyprland's built-in function when available
-    return absolutePath(path, basePath);
-#else
-    std::string expanded = expandEnvVars(path);
-    
-    // If already absolute, return as-is
-    if (!expanded.empty() && expanded[0] == '/') {
-        return expanded;
-    }
-    
-    // Make relative to base path's directory
-    std::string baseDir = std::filesystem::path(basePath).parent_path().string();
-    if (baseDir.empty()) {
-        baseDir = ".";
-    }
-    
-    return baseDir + "/" + expanded;
-#endif
-}
-
-// Get the main hyprland config path
 inline std::string getConfigPath() {
-    const char* xdgConfig = std::getenv("XDG_CONFIG_HOME");
-    std::string configDir;
-    
-    if (xdgConfig && xdgConfig[0] != '\0') {
-        configDir = xdgConfig;
-    } else {
-        const char* home = std::getenv("HOME");
-        if (!home) return "";
-        configDir = std::string(home) + "/.config";
-    }
-    
-    return configDir + "/hypr/hyprland.conf";
+    return g_pConfigManager->getMainConfigPath();
 }
 
-// Parse a config key like "general:gaps_in" into category and variable
-inline std::pair<std::string, std::string> parseConfigKey(const std::string& key) {
-    size_t pos = key.find(':');
-    if (pos == std::string::npos) {
-        return {"", key};
-    }
-    return {key.substr(0, pos), key.substr(pos + 1)};
-}
-
-// Trim whitespace from both ends
 inline std::string trim(const std::string& str) {
     size_t start = str.find_first_not_of(" \t");
     if (start == std::string::npos) return "";
@@ -126,14 +74,11 @@ struct UpdateResult {
     std::string error;
 };
 
-// Expand glob patterns using system glob() - same as Hyprland uses
 inline std::vector<std::string> expandGlob(const std::string& pattern) {
     std::vector<std::string> results;
-    
     glob_t glob_buf;
-    int r = glob(pattern.c_str(), GLOB_TILDE | GLOB_NOCHECK, nullptr, &glob_buf);
     
-    if (r == 0) {
+    if (glob(pattern.c_str(), GLOB_TILDE | GLOB_NOCHECK, nullptr, &glob_buf) == 0) {
         for (size_t i = 0; i < glob_buf.gl_pathc; i++) {
             results.push_back(glob_buf.gl_pathv[i]);
         }
@@ -143,8 +88,6 @@ inline std::vector<std::string> expandGlob(const std::string& pattern) {
     return results;
 }
 
-// Recursively collect all config files (main + sourced)
-// hyprVars tracks Hyprland variable definitions (e.g., $configs = /path)
 inline std::vector<std::string> collectConfigFilesWithVars(
     const std::string& configPath,
     std::map<std::string, std::string>& hyprVars
@@ -165,7 +108,6 @@ inline std::vector<std::string> collectConfigFilesWithVars(
     std::regex varDefRegex(R"(^\s*\$(\w+)\s*=\s*(.+)\s*$)");
     
     while (std::getline(inFile, line)) {
-        // Remove comments
         size_t commentPos = line.find('#');
         if (commentPos != std::string::npos) {
             line = line.substr(0, commentPos);
@@ -173,11 +115,9 @@ inline std::vector<std::string> collectConfigFilesWithVars(
         
         std::smatch match;
         
-        // Check for Hyprland variable definition ($varname = value)
         if (std::regex_match(line, match, varDefRegex)) {
             std::string varName = match[1].str();
             std::string varValue = trim(match[2].str());
-            // Expand any variables in the value itself
             for (const auto& [name, val] : hyprVars) {
                 size_t pos;
                 while ((pos = varValue.find("$" + name)) != std::string::npos) {
@@ -189,11 +129,9 @@ inline std::vector<std::string> collectConfigFilesWithVars(
             continue;
         }
         
-        // Check for source directive
         if (std::regex_match(line, match, sourceRegex)) {
             std::string sourcePath = trim(match[1].str());
             
-            // Expand Hyprland variables first
             for (const auto& [name, val] : hyprVars) {
                 size_t pos;
                 while ((pos = sourcePath.find("$" + name)) != std::string::npos) {
@@ -201,10 +139,7 @@ inline std::vector<std::string> collectConfigFilesWithVars(
                 }
             }
             
-            // Resolve path relative to current config (handles $HOME, ~, etc.)
-            std::string resolved = resolvePath(sourcePath, configPath);
-            
-            // Use glob to expand wildcards
+            std::string resolved = absolutePath(sourcePath, configPath);
             auto expanded = expandGlob(resolved);
             
             for (const auto& path : expanded) {
@@ -224,17 +159,15 @@ inline std::vector<std::string> collectConfigFiles(const std::string& configPath
     return collectConfigFilesWithVars(configPath, hyprVars);
 }
 
-// Search for a config value across all config files
-// Returns the LAST occurrence (since that's what takes effect)
 inline SearchResult findConfigValue(const std::string& key) {
     SearchResult result;
     std::string mainConfig = getConfigPath();
+    if (mainConfig.empty()) return result;
     
-    if (mainConfig.empty()) {
-        return result;
-    }
+    size_t colonPos = key.find(':');
+    std::string category = (colonPos != std::string::npos) ? key.substr(0, colonPos) : "";
+    std::string varName = (colonPos != std::string::npos) ? key.substr(colonPos + 1) : key;
     
-    auto [category, varName] = parseConfigKey(key);
     auto configFiles = collectConfigFiles(mainConfig);
     
     for (const auto& filePath : configFiles) {
@@ -258,7 +191,6 @@ inline SearchResult findConfigValue(const std::string& key) {
             
             if (trimmedLine.empty()) continue;
             
-            // Check for category start
             if (!category.empty()) {
                 if (!inTargetCategory) {
                     if (trimmedLine == category + " {" || trimmedLine == category + "{") {
@@ -278,12 +210,8 @@ inline SearchResult findConfigValue(const std::string& key) {
                 }
             }
             
-            // Check for variable match
             if (inTargetCategory || category.empty()) {
-                std::string varPattern = varName + " =";
-                std::string varPattern2 = varName + "=";
-                
-                if (trimmedLine.starts_with(varPattern) || trimmedLine.starts_with(varPattern2)) {
+                if (trimmedLine.starts_with(varName + " =") || trimmedLine.starts_with(varName + "=")) {
                     result.found = true;
                     result.filePath = filePath;
                     result.lineNumber = lineNum;
@@ -296,7 +224,6 @@ inline SearchResult findConfigValue(const std::string& key) {
     return result;
 }
 
-// Update a config value in its source file, or add to main config if not found
 inline UpdateResult updateConfigValue(const std::string& key, const std::string& value, bool setByUser) {
     UpdateResult result;
     std::string mainConfig = getConfigPath();
@@ -306,9 +233,10 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         return result;
     }
     
-    auto [category, varName] = parseConfigKey(key);
+    size_t colonPos = key.find(':');
+    std::string category = (colonPos != std::string::npos) ? key.substr(0, colonPos) : "";
+    std::string varName = (colonPos != std::string::npos) ? key.substr(colonPos + 1) : key;
     
-    // First, search for existing definition
     SearchResult search = findConfigValue(key);
     
     if (search.found) {
