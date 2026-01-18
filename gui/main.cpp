@@ -55,10 +55,8 @@ protected:
 
     void setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void setup_column_desc(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void bind_desc(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
     void load_data();
     void send_update(const std::string& name, const std::string& value);
@@ -129,13 +127,7 @@ void ConfigWindow::create_section_view(const std::string& sectionName) {
     col_val->set_expand(true);
     columnView->append_column(col_val);
 
-    auto factory_desc = Gtk::SignalListItemFactory::create();
-    factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_desc));
-    factory_desc->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_desc));
-    auto col_desc = Gtk::ColumnViewColumn::create("Description", factory_desc);
-    col_desc->set_fixed_width(1000);
-    col_desc->set_resizable(true);
-    columnView->append_column(col_desc);
+
 
     auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
     scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
@@ -151,16 +143,7 @@ void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_ite
     list_item->set_child(*label);
 }
 
-void ConfigWindow::setup_column_desc(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto label = Gtk::make_managed<Gtk::Label>();
-    label->set_halign(Gtk::Align::START);
-    label->set_valign(Gtk::Align::START);
-    label->set_wrap(true);
-    label->set_wrap_mode(Pango::WrapMode::WORD_CHAR);
-    label->set_xalign(0.0);
-    
-    list_item->set_child(*label);
-}
+
 
 void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = Gtk::make_managed<Gtk::EditableLabel>();
@@ -185,7 +168,10 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
 void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
     auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
-    if (item && label) label->set_text(item->m_short_name);
+    if (item && label) {
+        label->set_text(item->m_short_name);
+        label->set_tooltip_text(item->m_desc);
+    }
 }
 
 void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -194,11 +180,7 @@ void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     if (item && label) label->set_text(item->m_value);
 }
 
-void ConfigWindow::bind_desc(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-    auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
-    if (item && label) label->set_text(item->m_desc);
-}
+
 
 void ConfigWindow::on_button_refresh() {
     load_data();
