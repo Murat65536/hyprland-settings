@@ -283,32 +283,9 @@ void ConfigWindow::load_data() {
     readData(sock, &count, sizeof(count));
 
     for (uint32_t i = 0; i < count; ++i) {
-        IPC::OptionType type;
-        readData(sock, &type, sizeof(type));
-
         std::string name = readString(sock);
         std::string desc = readString(sock);
-        std::string valStr = "";
-
-        if (type == IPC::OptionType::INT) {
-            int64_t val;
-            readData(sock, &val, sizeof(val));
-            valStr = std::to_string(val);
-        } else if (type == IPC::OptionType::FLOAT) {
-            double val;
-            readData(sock, &val, sizeof(val));
-            valStr = std::to_string(val);
-        } else if (type == IPC::OptionType::STRING) {
-            valStr = readString(sock);
-        } else if (type == IPC::OptionType::VEC2) {
-            double vec[2];
-            readData(sock, vec, sizeof(vec));
-            std::stringstream ss;
-            ss << "[" << vec[0] << ", " << vec[1] << "]";
-            valStr = ss.str();
-        } else {
-            valStr = "Unknown Type";
-        }
+        std::string valStr = readString(sock);
         
         // Determine section
         std::string section = "General";

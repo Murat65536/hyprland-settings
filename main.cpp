@@ -63,58 +63,35 @@ void handleClient(int client_fd) {
         writeData(client_fd, &count, sizeof(count));
 
         for (const auto& desc : descriptions) {
-            IPC::OptionType type = IPC::OptionType::UNKNOWN;
-            
             auto* configVal = g_pConfigManager->getHyprlangConfigValuePtr(desc.value);
             if (!configVal) {
-                 type = IPC::OptionType::UNKNOWN;
-                 writeData(client_fd, &type, sizeof(type));
                  writeString(client_fd, desc.value);
                  writeString(client_fd, desc.description);
+                 writeString(client_fd, "");
                  continue;
             }
+
+            writeString(client_fd, desc.value);
+            writeString(client_fd, desc.description);
 
             try {
                 auto anyVal = configVal->getValue();
                 if (anyVal.type() == typeid(Hyprlang::INT)) {
-                    type = IPC::OptionType::INT;
-                    writeData(client_fd, &type, sizeof(type));
-                    writeString(client_fd, desc.value);
-                    writeString(client_fd, desc.description);
                     int64_t val = std::any_cast<Hyprlang::INT>(anyVal);
-                    writeData(client_fd, &val, sizeof(val));
+                    writeString(client_fd, std::to_string(val));
                 } else if (anyVal.type() == typeid(Hyprlang::FLOAT)) {
-                    type = IPC::OptionType::FLOAT;
-                    writeData(client_fd, &type, sizeof(type));
-                    writeString(client_fd, desc.value);
-                    writeString(client_fd, desc.description);
                     double val = std::any_cast<Hyprlang::FLOAT>(anyVal);
-                    writeData(client_fd, &val, sizeof(val));
+                    writeString(client_fd, std::to_string(val));
                 } else if (anyVal.type() == typeid(Hyprlang::STRING)) {
-                    type = IPC::OptionType::STRING;
-                    writeData(client_fd, &type, sizeof(type));
-                    writeString(client_fd, desc.value);
-                    writeString(client_fd, desc.description);
                     writeString(client_fd, std::any_cast<Hyprlang::STRING>(anyVal));
                 } else if (anyVal.type() == typeid(Hyprlang::VEC2)) {
-                    type = IPC::OptionType::VEC2;
-                    writeData(client_fd, &type, sizeof(type));
-                    writeString(client_fd, desc.value);
-                    writeString(client_fd, desc.description);
                     auto vec = std::any_cast<Hyprlang::VEC2>(anyVal);
-                    double vecArr[2] = { vec.x, vec.y };
-                    writeData(client_fd, vecArr, sizeof(vecArr));
+                    writeString(client_fd, std::to_string(vec.x) + "," + std::to_string(vec.y));
                 } else {
-                    type = IPC::OptionType::UNKNOWN;
-                    writeData(client_fd, &type, sizeof(type));
-                    writeString(client_fd, desc.value);
-                    writeString(client_fd, desc.description);
+                    writeString(client_fd, "UNKNOWN");
                 }
             } catch (...) {
-                 type = IPC::OptionType::UNKNOWN;
-                 writeData(client_fd, &type, sizeof(type));
-                 writeString(client_fd, desc.value);
-                 writeString(client_fd, desc.description);
+                 writeString(client_fd, "ERROR");
             }
         }
     } 
