@@ -1,5 +1,6 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
+#include <hyprland/src/config/ConfigDataValues.hpp>
 #include <hyprlang.hpp>
 #include <thread>
 #include <vector>
@@ -9,6 +10,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <any>
+#include <typeindex>
 #include "ipc_common.hpp"
 
 inline HANDLE PHANDLE = nullptr;
@@ -74,24 +76,24 @@ void handleClient(int client_fd) {
             writeString(client_fd, desc.value);
             writeString(client_fd, desc.description);
 
-            try {
-                auto anyVal = configVal->getValue();
-                if (anyVal.type() == typeid(Hyprlang::INT)) {
-                    int64_t val = std::any_cast<Hyprlang::INT>(anyVal);
-                    writeString(client_fd, std::to_string(val));
-                } else if (anyVal.type() == typeid(Hyprlang::FLOAT)) {
-                    double val = std::any_cast<Hyprlang::FLOAT>(anyVal);
-                    writeString(client_fd, std::to_string(val));
-                } else if (anyVal.type() == typeid(Hyprlang::STRING)) {
-                    writeString(client_fd, std::any_cast<Hyprlang::STRING>(anyVal));
-                } else if (anyVal.type() == typeid(Hyprlang::VEC2)) {
-                    auto vec = std::any_cast<Hyprlang::VEC2>(anyVal);
-                    writeString(client_fd, std::to_string(vec.x) + "," + std::to_string(vec.y));
-                } else {
-                    writeString(client_fd, "UNKNOWN");
-                }
-            } catch (...) {
-                 writeString(client_fd, "ERROR");
+            // Implementation based on Hyprland's dispatchGetOption in src/debug/HyprCtl.cpp
+            const auto VAL  = configVal->getValue();
+            const auto TYPE = std::type_index(VAL.type());
+
+            if (TYPE == typeid(Hyprlang::INT)) {
+                writeString(client_fd, std::to_string(std::any_cast<Hyprlang::INT>(VAL)));
+            } else if (TYPE == typeid(Hyprlang::FLOAT)) {
+                writeString(client_fd, std::to_string(std::any_cast<Hyprlang::FLOAT>(VAL)));
+            } else if (TYPE == typeid(Hyprlang::STRING)) {
+                writeString(client_fd, std::any_cast<Hyprlang::STRING>(VAL));
+            } else if (TYPE == typeid(Hyprlang::VEC2)) {
+                auto vec = std::any_cast<Hyprlang::VEC2>(VAL);
+                writeString(client_fd, std::to_string(vec.x) + "," + std::to_string(vec.y));
+            } else if (TYPE == typeid(void*)) {
+                // Custom config types (gradients, css gaps, etc.) implement ICustomConfigValueData
+                writeString(client_fd, static_cast<ICustomConfigValueData*>(std::any_cast<void*>(VAL))->toString());
+            } else {
+                writeString(client_fd, "UNKNOWN");
             }
         }
     } 
