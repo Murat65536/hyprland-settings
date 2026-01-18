@@ -74,6 +74,118 @@ struct UpdateResult {
     std::string error;
 };
 
+// Result of scanning a file for category matches
+struct CategoryScanResult {
+    int maxCategoryMatch = 0;
+    std::vector<int> categoryStartLines;
+    std::vector<int> categoryEndLines;
+};
+
+// Parse a key like "decoration:shadow:enabled" into categories and varName
+inline void parseKey(const std::string& key, std::vector<std::string>& categories, std::string& varName) {
+    std::vector<std::string> parts;
+    size_t pos = 0;
+    size_t colonPos;
+    while ((colonPos = key.find(':', pos)) != std::string::npos) {
+        parts.push_back(key.substr(pos, colonPos - pos));
+        pos = colonPos + 1;
+    }
+    parts.push_back(key.substr(pos));
+    
+    varName = parts.back();
+    parts.pop_back();
+    categories = parts;
+}
+
+// Scan a file for category matches
+inline CategoryScanResult scanFileForCategories(const std::string& filePath, const std::vector<std::string>& categories) {
+    CategoryScanResult result;
+    if (categories.empty()) return result;
+    
+    std::ifstream inFile(filePath);
+    if (!inFile) return result;
+    
+    std::string line;
+    int currentCategoryMatch = 0;
+    int braceDepth = 0;
+    int lineNum = 0;
+    
+    while (std::getline(inFile, line)) {
+        lineNum++;
+        
+        std::string trimmedLine = line;
+        size_t commentPos = trimmedLine.find('#');
+        if (commentPos != std::string::npos) {
+            trimmedLine = trimmedLine.substr(0, commentPos);
+        }
+        trimmedLine = trim(trimmedLine);
+        
+        if (trimmedLine.empty()) continue;
+        
+        if (currentCategoryMatch < (int)categories.size()) {
+            const std::string& expectedCat = categories[currentCategoryMatch];
+            size_t catLen = expectedCat.length();
+            if (trimmedLine.length() >= catLen && 
+                trimmedLine.substr(0, catLen) == expectedCat) {
+                std::string remainder = trim(trimmedLine.substr(catLen));
+                if (remainder == "{") {
+                    result.categoryStartLines.push_back(lineNum - 1);
+                    result.categoryEndLines.push_back(-1);
+                    currentCategoryMatch++;
+                    braceDepth = 1;
+                    if (currentCategoryMatch > result.maxCategoryMatch) {
+                        result.maxCategoryMatch = currentCategoryMatch;
+                    }
+                    continue;
+                }
+            }
+        }
+        
+        if (currentCategoryMatch > 0) {
+            for (char c : trimmedLine) {
+                if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+            }
+            if (braceDepth == 0) {
+                result.categoryEndLines[currentCategoryMatch - 1] = lineNum - 1;
+                currentCategoryMatch--;
+                if (currentCategoryMatch > 0) {
+                    braceDepth = 1;
+                }
+            }
+        }
+    }
+    
+    return result;
+}
+
+// Write lines to a file
+inline bool writeLinesToFile(const std::string& filePath, const std::vector<std::string>& lines) {
+    std::ofstream outFile(filePath);
+    if (!outFile) return false;
+    
+    for (size_t i = 0; i < lines.size(); ++i) {
+        outFile << lines[i];
+        if (i < lines.size() - 1) outFile << "\n";
+    }
+    outFile << "\n";
+    outFile.close();
+    return true;
+}
+
+// Read all lines from a file
+inline std::vector<std::string> readLinesFromFile(const std::string& filePath) {
+    std::vector<std::string> lines;
+    std::ifstream inFile(filePath);
+    if (!inFile) return lines;
+    
+    std::string line;
+    while (std::getline(inFile, line)) {
+        lines.push_back(line);
+    }
+    return lines;
+}
+
 inline std::vector<std::string> expandGlob(const std::string& pattern) {
     std::vector<std::string> results;
     glob_t glob_buf;
@@ -164,19 +276,9 @@ inline SearchResult findConfigValue(const std::string& key) {
     std::string mainConfig = getConfigPath();
     if (mainConfig.empty()) return result;
     
-    // Parse nested categories (e.g., "decoration:shadow:enabled")
-    std::vector<std::string> parts;
-    size_t pos = 0;
-    size_t colonPos;
-    while ((colonPos = key.find(':', pos)) != std::string::npos) {
-        parts.push_back(key.substr(pos, colonPos - pos));
-        pos = colonPos + 1;
-    }
-    parts.push_back(key.substr(pos));
-    
-    std::string varName = parts.back();
-    parts.pop_back();
-    std::vector<std::string> categories = parts;
+    std::vector<std::string> categories;
+    std::string varName;
+    parseKey(key, categories, varName);
     
     auto configFiles = collectConfigFiles(mainConfig);
     
@@ -186,7 +288,6 @@ inline SearchResult findConfigValue(const std::string& key) {
         
         std::string line;
         int lineNum = 0;
-        std::vector<int> categoryDepths(categories.size(), 0);
         int currentCategoryMatch = 0;
         bool inTargetCategory = categories.empty();
         int braceDepth = 0;
@@ -205,7 +306,6 @@ inline SearchResult findConfigValue(const std::string& key) {
             
             if (!categories.empty()) {
                 if (!inTargetCategory) {
-                    // Check if we're entering the next expected category
                     if (currentCategoryMatch < (int)categories.size()) {
                         const std::string& expectedCat = categories[currentCategoryMatch];
                         size_t catLen = expectedCat.length();
@@ -263,58 +363,30 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         return result;
     }
     
-    // Parse nested categories (e.g., "decoration:shadow:enabled")
-    std::vector<std::string> parts;
-    size_t pos = 0;
-    size_t colonPos;
-    while ((colonPos = key.find(':', pos)) != std::string::npos) {
-        parts.push_back(key.substr(pos, colonPos - pos));
-        pos = colonPos + 1;
-    }
-    parts.push_back(key.substr(pos));
-    
-    std::string varName = parts.back();
-    parts.pop_back();
-    std::vector<std::string> categories = parts;
+    std::vector<std::string> categories;
+    std::string varName;
+    parseKey(key, categories, varName);
     
     SearchResult search = findConfigValue(key);
     
     if (search.found) {
-        // Update existing line in the file where it was found
-        std::ifstream inFile(search.filePath);
-        if (!inFile) {
+        std::vector<std::string> lines = readLinesFromFile(search.filePath);
+        if (lines.empty() && std::filesystem::exists(search.filePath)) {
             result.error = "Could not read file: " + search.filePath;
             return result;
         }
         
-        std::vector<std::string> lines;
-        std::string line;
-        int lineNum = 0;
-        
-        while (std::getline(inFile, line)) {
-            lineNum++;
-            if (lineNum == search.lineNumber) {
-                size_t indentEnd = line.find_first_not_of(" \t");
-                std::string indent = (indentEnd != std::string::npos) ? line.substr(0, indentEnd) : "";
-                lines.push_back(indent + varName + " = " + value);
-            } else {
-                lines.push_back(line);
-            }
+        if (search.lineNumber > 0 && search.lineNumber <= (int)lines.size()) {
+            std::string& targetLine = lines[search.lineNumber - 1];
+            size_t indentEnd = targetLine.find_first_not_of(" \t");
+            std::string indent = (indentEnd != std::string::npos) ? targetLine.substr(0, indentEnd) : "";
+            targetLine = indent + varName + " = " + value;
         }
-        inFile.close();
         
-        std::ofstream outFile(search.filePath);
-        if (!outFile) {
+        if (!writeLinesToFile(search.filePath, lines)) {
             result.error = "Could not write to file: " + search.filePath;
             return result;
         }
-        
-        for (size_t i = 0; i < lines.size(); ++i) {
-            outFile << lines[i];
-            if (i < lines.size() - 1) outFile << "\n";
-        }
-        outFile << "\n";
-        outFile.close();
         
         result.success = true;
         result.wasExisting = true;
@@ -322,88 +394,63 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         return result;
     }
     
-    // Not found anywhere - add to main config file
-    if (!std::filesystem::exists(mainConfig)) {
-        result.error = "Main config file does not exist: " + mainConfig;
+    // Not found - search all config files for parent sections
+    auto configFiles = collectConfigFiles(mainConfig);
+    
+    std::string targetFile = mainConfig;
+    CategoryScanResult bestScan;
+    
+    for (const auto& filePath : configFiles) {
+        if (!std::filesystem::exists(filePath)) continue;
+        
+        CategoryScanResult scan = scanFileForCategories(filePath, categories);
+        if (scan.maxCategoryMatch > bestScan.maxCategoryMatch) {
+            bestScan = scan;
+            targetFile = filePath;
+        }
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(targetFile);
+    if (lines.empty() && std::filesystem::exists(targetFile)) {
+        result.error = "Could not read config file: " + targetFile;
         return result;
     }
-    
-    std::ifstream inFile(mainConfig);
-    if (!inFile) {
-        result.error = "Could not read main config file";
-        return result;
-    }
-    
-    std::vector<std::string> lines;
-    std::string line;
-    int currentCategoryMatch = 0;
-    bool inTargetCategory = categories.empty();
-    std::vector<int> categoryStartLines;
-    int categoryEndLine = -1;
-    int braceDepth = 0;
-    int lineNum = 0;
-    
-    while (std::getline(inFile, line)) {
-        lines.push_back(line);
-        lineNum++;
-        
-        std::string trimmedLine = line;
-        size_t commentPos = trimmedLine.find('#');
-        if (commentPos != std::string::npos) {
-            trimmedLine = trimmedLine.substr(0, commentPos);
-        }
-        trimmedLine = trim(trimmedLine);
-        
-        if (trimmedLine.empty()) continue;
-        
-        if (!categories.empty() && !inTargetCategory) {
-            if (currentCategoryMatch < (int)categories.size()) {
-                const std::string& expectedCat = categories[currentCategoryMatch];
-                size_t catLen = expectedCat.length();
-                if (trimmedLine.length() >= catLen && 
-                    trimmedLine.substr(0, catLen) == expectedCat) {
-                    std::string remainder = trim(trimmedLine.substr(catLen));
-                    if (remainder == "{") {
-                        categoryStartLines.push_back(lineNum - 1);
-                        currentCategoryMatch++;
-                        braceDepth = 1;
-                        if (currentCategoryMatch == (int)categories.size()) {
-                            inTargetCategory = true;
-                        }
-                        continue;
-                    }
-                }
-            }
-        }
-        
-        if (inTargetCategory && !categories.empty()) {
-            for (char c : trimmedLine) {
-                if (c == '{') braceDepth++;
-                else if (c == '}') braceDepth--;
-            }
-            if (braceDepth == 0) {
-                categoryEndLine = lineNum - 1;
-                inTargetCategory = false;
-            }
-        }
-    }
-    inFile.close();
     
     // Add the value
-    std::string indent(categories.size() * 4, ' ');
     if (categories.empty()) {
         lines.push_back(varName + " = " + value);
-    } else if (!categoryStartLines.empty() && categoryStartLines.size() == categories.size()) {
-        // All categories exist, insert at the end of the innermost category
-        int insertLine = (categoryEndLine >= 0) ? categoryEndLine : categoryStartLines.back() + 1;
+    } else if (bestScan.maxCategoryMatch == (int)categories.size()) {
+        // All categories exist
+        std::string indent(categories.size() * 4, ' ');
+        int insertLine = bestScan.categoryEndLines.back();
+        if (insertLine < 0) insertLine = bestScan.categoryStartLines.back() + 1;
         lines.insert(lines.begin() + insertLine, indent + varName + " = " + value);
+    } else if (bestScan.maxCategoryMatch > 0) {
+        // Partial match - create missing nested sections
+        int insertLine = bestScan.categoryEndLines[bestScan.maxCategoryMatch - 1];
+        if (insertLine < 0) insertLine = bestScan.categoryStartLines[bestScan.maxCategoryMatch - 1] + 1;
+        
+        std::vector<std::string> newLines;
+        for (size_t i = bestScan.maxCategoryMatch; i < categories.size(); i++) {
+            std::string catIndent(i * 4, ' ');
+            newLines.push_back(catIndent + categories[i] + " {");
+        }
+        std::string valueIndent(categories.size() * 4, ' ');
+        newLines.push_back(valueIndent + varName + " = " + value);
+        for (int i = categories.size() - 1; i >= bestScan.maxCategoryMatch; i--) {
+            std::string catIndent(i * 4, ' ');
+            newLines.push_back(catIndent + "}");
+        }
+        
+        lines.insert(lines.begin() + insertLine, newLines.begin(), newLines.end());
     } else {
-        // Need to create missing categories
+        // No parent categories exist
         lines.push_back("");
         for (size_t i = 0; i < categories.size(); i++) {
             std::string catIndent(i * 4, ' ');
             lines.push_back(catIndent + categories[i] + " {");
         }
+        std::string indent(categories.size() * 4, ' ');
         lines.push_back(indent + varName + " = " + value);
         for (int i = categories.size() - 1; i >= 0; i--) {
             std::string catIndent(i * 4, ' ');
@@ -411,22 +458,14 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         }
     }
     
-    std::ofstream outFile(mainConfig);
-    if (!outFile) {
-        result.error = "Could not write to main config file";
+    if (!writeLinesToFile(targetFile, lines)) {
+        result.error = "Could not write to config file: " + targetFile;
         return result;
     }
     
-    for (size_t i = 0; i < lines.size(); ++i) {
-        outFile << lines[i];
-        if (i < lines.size() - 1) outFile << "\n";
-    }
-    outFile << "\n";
-    outFile.close();
-    
     result.success = true;
     result.wasExisting = false;
-    result.filePath = mainConfig;
+    result.filePath = targetFile;
     return result;
 }
 
