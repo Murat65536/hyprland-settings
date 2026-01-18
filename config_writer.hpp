@@ -638,4 +638,295 @@ inline UpdateResult updateKeywordEntry(const std::string& filePath, int lineNumb
     return result;
 }
 
+// Structure to hold a per-device input config entry
+struct DeviceConfigEntry {
+    std::string deviceName;     // The device name (from hyprctl devices)
+    std::string option;         // The config option (e.g., sensitivity, accel_profile)
+    std::string value;          // The value
+    std::string filePath;       // Which config file it's in
+    int startLine;              // Line where device { starts
+    int optionLine;             // Line where this option is
+};
+
+// Get all per-device input config entries from config files
+inline std::vector<DeviceConfigEntry> getDeviceConfigEntries() {
+    std::vector<DeviceConfigEntry> entries;
+    std::string mainConfig = getConfigPath();
+    if (mainConfig.empty()) return entries;
+    
+    auto configFiles = collectConfigFiles(mainConfig);
+    
+    // Regex to match device section: device:device-name {
+    std::regex deviceStartRegex(R"(^\s*device\s*:\s*([^\s{]+)\s*\{?\s*$)");
+    // Also match device { with name = inside
+    std::regex deviceBlockRegex(R"(^\s*device\s*\{\s*$)");
+    std::regex nameRegex(R"(^\s*name\s*[=:]\s*(.+)\s*$)");
+    std::regex optionRegex(R"(^\s*(\w+)\s*[=:]\s*(.+)\s*$)");
+    
+    for (const auto& filePath : configFiles) {
+        std::ifstream inFile(filePath);
+        if (!inFile) continue;
+        
+        std::string line;
+        int lineNum = 0;
+        bool inDeviceBlock = false;
+        std::string currentDeviceName;
+        int deviceStartLine = -1;
+        int braceDepth = 0;
+        
+        while (std::getline(inFile, line)) {
+            lineNum++;
+            
+            std::string checkLine = line;
+            size_t commentPos = checkLine.find('#');
+            if (commentPos != std::string::npos) {
+                checkLine = checkLine.substr(0, commentPos);
+            }
+            std::string trimmedLine = trim(checkLine);
+            
+            if (trimmedLine.empty()) continue;
+            
+            std::smatch match;
+            
+            if (!inDeviceBlock) {
+                // Check for device:name { or device:name followed by {
+                if (std::regex_match(trimmedLine, match, deviceStartRegex)) {
+                    currentDeviceName = match[1].str();
+                    deviceStartLine = lineNum;
+                    inDeviceBlock = true;
+                    braceDepth = (trimmedLine.find('{') != std::string::npos) ? 1 : 0;
+                    continue;
+                }
+            }
+            
+            if (inDeviceBlock) {
+                // Count braces
+                for (char c : trimmedLine) {
+                    if (c == '{') braceDepth++;
+                    else if (c == '}') braceDepth--;
+                }
+                
+                if (braceDepth <= 0) {
+                    inDeviceBlock = false;
+                    currentDeviceName.clear();
+                    deviceStartLine = -1;
+                    continue;
+                }
+                
+                // Parse option inside device block
+                if (std::regex_match(trimmedLine, match, optionRegex)) {
+                    std::string optName = match[1].str();
+                    std::string optValue = trim(match[2].str());
+                    
+                    // Skip the name option as it's metadata
+                    if (optName != "name") {
+                        DeviceConfigEntry entry;
+                        entry.deviceName = currentDeviceName;
+                        entry.option = optName;
+                        entry.value = optValue;
+                        entry.filePath = filePath;
+                        entry.startLine = deviceStartLine;
+                        entry.optionLine = lineNum;
+                        entries.push_back(entry);
+                    }
+                }
+            }
+        }
+    }
+    
+    return entries;
+}
+
+// Get list of unique device names that have configs
+inline std::vector<std::string> getConfiguredDevices() {
+    std::vector<std::string> devices;
+    auto entries = getDeviceConfigEntries();
+    
+    std::set<std::string> seen;
+    for (const auto& entry : entries) {
+        if (seen.find(entry.deviceName) == seen.end()) {
+            seen.insert(entry.deviceName);
+            devices.push_back(entry.deviceName);
+        }
+    }
+    
+    return devices;
+}
+
+// Add a new device config section with an initial option
+inline UpdateResult addDeviceConfig(const std::string& deviceName, const std::string& option, const std::string& value) {
+    UpdateResult result;
+    std::string mainConfig = getConfigPath();
+    
+    if (mainConfig.empty()) {
+        result.error = "Could not determine config path";
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(mainConfig);
+    
+    // Check if device section already exists
+    std::regex deviceStartRegex(R"(^\s*device\s*:\s*)" + deviceName + R"(\s*\{?\s*$)");
+    int existingDeviceLine = -1;
+    int existingDeviceEndLine = -1;
+    int braceDepth = 0;
+    
+    for (size_t i = 0; i < lines.size(); i++) {
+        std::string checkLine = lines[i];
+        size_t commentPos = checkLine.find('#');
+        if (commentPos != std::string::npos) {
+            checkLine = checkLine.substr(0, commentPos);
+        }
+        std::string trimmed = trim(checkLine);
+        
+        std::smatch match;
+        if (existingDeviceLine < 0 && std::regex_match(trimmed, match, deviceStartRegex)) {
+            existingDeviceLine = i;
+            braceDepth = (trimmed.find('{') != std::string::npos) ? 1 : 0;
+        } else if (existingDeviceLine >= 0) {
+            for (char c : trimmed) {
+                if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+            }
+            if (braceDepth <= 0) {
+                existingDeviceEndLine = i;
+                break;
+            }
+        }
+    }
+    
+    if (existingDeviceLine >= 0 && existingDeviceEndLine >= 0) {
+        // Device exists, add option before closing brace
+        std::string newLine = "    " + option + " = " + value;
+        lines.insert(lines.begin() + existingDeviceEndLine, newLine);
+    } else {
+        // Create new device section
+        lines.push_back("");
+        lines.push_back("device:" + deviceName + " {");
+        lines.push_back("    " + option + " = " + value);
+        lines.push_back("}");
+    }
+    
+    if (!writeLinesToFile(mainConfig, lines)) {
+        result.error = "Could not write to config file";
+        return result;
+    }
+    
+    result.success = true;
+    result.filePath = mainConfig;
+    return result;
+}
+
+// Update a device config option
+inline UpdateResult updateDeviceConfigOption(const std::string& filePath, int lineNumber,
+                                              const std::string& option, const std::string& value) {
+    UpdateResult result;
+    
+    if (!std::filesystem::exists(filePath)) {
+        result.error = "File does not exist: " + filePath;
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(filePath);
+    
+    if (lineNumber < 1 || lineNumber > (int)lines.size()) {
+        result.error = "Invalid line number";
+        return result;
+    }
+    
+    // Preserve indentation
+    std::string& targetLine = lines[lineNumber - 1];
+    size_t indentEnd = targetLine.find_first_not_of(" \t");
+    std::string indent = (indentEnd != std::string::npos) ? targetLine.substr(0, indentEnd) : "";
+    
+    targetLine = indent + option + " = " + value;
+    
+    if (!writeLinesToFile(filePath, lines)) {
+        result.error = "Could not write to file";
+        return result;
+    }
+    
+    result.success = true;
+    result.wasExisting = true;
+    result.filePath = filePath;
+    return result;
+}
+
+// Remove a device config option (or entire device section if last option)
+inline UpdateResult removeDeviceConfigOption(const std::string& filePath, int lineNumber,
+                                              const std::string& deviceName) {
+    UpdateResult result;
+    
+    if (!std::filesystem::exists(filePath)) {
+        result.error = "File does not exist: " + filePath;
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(filePath);
+    
+    if (lineNumber < 1 || lineNumber > (int)lines.size()) {
+        result.error = "Invalid line number";
+        return result;
+    }
+    
+    // Find the device section bounds
+    std::regex deviceStartRegex(R"(^\s*device\s*:\s*)" + deviceName + R"(\s*\{?\s*$)");
+    int deviceStartLine = -1;
+    int deviceEndLine = -1;
+    int optionCount = 0;
+    int braceDepth = 0;
+    
+    for (size_t i = 0; i < lines.size(); i++) {
+        std::string checkLine = lines[i];
+        size_t commentPos = checkLine.find('#');
+        if (commentPos != std::string::npos) {
+            checkLine = checkLine.substr(0, commentPos);
+        }
+        std::string trimmed = trim(checkLine);
+        
+        std::smatch match;
+        if (deviceStartLine < 0 && std::regex_match(trimmed, match, deviceStartRegex)) {
+            deviceStartLine = i;
+            braceDepth = (trimmed.find('{') != std::string::npos) ? 1 : 0;
+        } else if (deviceStartLine >= 0) {
+            for (char c : trimmed) {
+                if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+            }
+            
+            // Count options (lines with = that aren't the closing brace)
+            if (braceDepth > 0 && trimmed.find('=') != std::string::npos) {
+                optionCount++;
+            }
+            
+            if (braceDepth <= 0) {
+                deviceEndLine = i;
+                break;
+            }
+        }
+    }
+    
+    if (optionCount <= 1 && deviceStartLine >= 0 && deviceEndLine >= 0) {
+        // Remove entire device section
+        // Also remove preceding empty line if present
+        int removeStart = deviceStartLine;
+        if (removeStart > 0 && trim(lines[removeStart - 1]).empty()) {
+            removeStart--;
+        }
+        lines.erase(lines.begin() + removeStart, lines.begin() + deviceEndLine + 1);
+    } else {
+        // Just remove the single option line
+        lines.erase(lines.begin() + (lineNumber - 1));
+    }
+    
+    if (!writeLinesToFile(filePath, lines)) {
+        result.error = "Could not write to file";
+        return result;
+    }
+    
+    result.success = true;
+    result.filePath = filePath;
+    return result;
+}
+
 } // namespace ConfigWriter

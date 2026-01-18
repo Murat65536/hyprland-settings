@@ -8,7 +8,12 @@ namespace IPC {
         GET_KEYWORDS = 2,        // Get all keyword entries (exec-once, etc.)
         ADD_KEYWORD = 3,         // Add a new keyword entry
         REMOVE_KEYWORD = 4,      // Remove a keyword entry by index
-        UPDATE_KEYWORD = 5       // Update a keyword entry
+        UPDATE_KEYWORD = 5,      // Update a keyword entry
+        GET_DEVICES = 6,         // Get list of available input devices
+        GET_DEVICE_CONFIGS = 7,  // Get per-device input configurations
+        ADD_DEVICE_CONFIG = 8,   // Add a new device config section
+        UPDATE_DEVICE_CONFIG = 9,// Update a device config entry
+        REMOVE_DEVICE_CONFIG = 10// Remove a device config section
     };
 
     // Supported keyword types

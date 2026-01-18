@@ -2,6 +2,7 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigDataValues.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprlang.hpp>
 #include <thread>
 #include <vector>
@@ -12,6 +13,7 @@
 #include <unistd.h>
 #include <any>
 #include <typeindex>
+#include <set>
 #include "ipc_common.hpp"
 #include "config_writer.hpp"
 
@@ -184,6 +186,99 @@ void handleClient(int client_fd) {
         
         if (result.success) {
             writeString(client_fd, "OK:UPDATED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
+    else if (reqType == IPC::RequestType::GET_DEVICES) {
+        // Get device list directly from InputManager
+        std::set<std::string> deviceNames;
+        
+        // Collect all device names from InputManager
+        for (const auto& kb : g_pInputManager->m_keyboards) {
+            if (kb && !kb->m_hlName.empty())
+                deviceNames.insert(kb->m_hlName);
+        }
+        for (const auto& ptr : g_pInputManager->m_pointers) {
+            if (ptr && !ptr->m_hlName.empty())
+                deviceNames.insert(ptr->m_hlName);
+        }
+        for (const auto& touch : g_pInputManager->m_touches) {
+            if (touch && !touch->m_hlName.empty())
+                deviceNames.insert(touch->m_hlName);
+        }
+        for (const auto& tablet : g_pInputManager->m_tablets) {
+            if (tablet && !tablet->m_hlName.empty())
+                deviceNames.insert(tablet->m_hlName);
+        }
+        
+        // Send count then each device name
+        uint32_t count = deviceNames.size();
+        writeData(client_fd, &count, sizeof(count));
+        for (const auto& name : deviceNames) {
+            writeString(client_fd, name);
+        }
+    }
+    else if (reqType == IPC::RequestType::GET_DEVICE_CONFIGS) {
+        auto entries = ConfigWriter::getDeviceConfigEntries();
+        
+        uint32_t count = entries.size();
+        writeData(client_fd, &count, sizeof(count));
+        
+        for (const auto& entry : entries) {
+            writeString(client_fd, entry.deviceName);
+            writeString(client_fd, entry.option);
+            writeString(client_fd, entry.value);
+            writeString(client_fd, entry.filePath);
+            int32_t startLine = entry.startLine;
+            int32_t optionLine = entry.optionLine;
+            writeData(client_fd, &startLine, sizeof(startLine));
+            writeData(client_fd, &optionLine, sizeof(optionLine));
+        }
+    }
+    else if (reqType == IPC::RequestType::ADD_DEVICE_CONFIG) {
+        std::string deviceName = readString(client_fd);
+        std::string option = readString(client_fd);
+        std::string value = readString(client_fd);
+        
+        auto result = ConfigWriter::addDeviceConfig(deviceName, option, value);
+        
+        if (result.success) {
+            // Apply at runtime
+            g_pConfigManager->parseKeyword("device:" + deviceName + ":" + option, value);
+            writeString(client_fd, "OK:ADDED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
+    else if (reqType == IPC::RequestType::UPDATE_DEVICE_CONFIG) {
+        std::string filePath = readString(client_fd);
+        int32_t lineNumber;
+        readData(client_fd, &lineNumber, sizeof(lineNumber));
+        std::string deviceName = readString(client_fd);
+        std::string option = readString(client_fd);
+        std::string value = readString(client_fd);
+        
+        auto result = ConfigWriter::updateDeviceConfigOption(filePath, lineNumber, option, value);
+        
+        if (result.success) {
+            // Apply at runtime
+            g_pConfigManager->parseKeyword("device:" + deviceName + ":" + option, value);
+            writeString(client_fd, "OK:UPDATED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
+    else if (reqType == IPC::RequestType::REMOVE_DEVICE_CONFIG) {
+        std::string filePath = readString(client_fd);
+        int32_t lineNumber;
+        readData(client_fd, &lineNumber, sizeof(lineNumber));
+        std::string deviceName = readString(client_fd);
+        
+        auto result = ConfigWriter::removeDeviceConfigOption(filePath, lineNumber, deviceName);
+        
+        if (result.success) {
+            writeString(client_fd, "OK:REMOVED");
         } else {
             writeString(client_fd, "ERROR:" + result.error);
         }
