@@ -4,6 +4,10 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include "../ipc_common.hpp"
 
 // Simplified approach using ColumnView for easier multi-column display
 class ConfigWindow : public Gtk::Window
@@ -131,32 +135,78 @@ void ConfigWindow::on_button_refresh() {
     load_data();
 }
 
+void readData(int fd, void* buffer, size_t size) {
+    size_t total = 0;
+    while (total < size) {
+        ssize_t r = read(fd, (char*)buffer + total, size - total);
+        if (r <= 0) break; 
+        total += r;
+    }
+}
+
+std::string readString(int fd) {
+    uint32_t len = 0;
+    readData(fd, &len, sizeof(len));
+    if (len == 0) return "";
+    std::vector<char> buf(len + 1);
+    readData(fd, buf.data(), len);
+    buf[len] = '\0';
+    return std::string(buf.data());
+}
+
 void ConfigWindow::load_data() {
     m_ListStore->remove_all();
 
-    std::ifstream file("/tmp/hyprland_options.txt");
-    if (!file.is_open()) {
-        m_ListStore->append(ConfigItem::create("Error", "File not found", "Make sure plugin is loaded"));
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        m_ListStore->append(ConfigItem::create("Error", "Socket creation error", ""));
         return;
     }
 
-    std::string line;
-    std::string name, desc, val;
-    
-    while (std::getline(file, line)) {
-        if (line.find("Option: ") == 0) {
-            name = line.substr(8);
-        } else if (line.find("  Description: ") == 0) {
-            desc = line.substr(15);
-        } else if (line.find("  Value: ") == 0) {
-            val = line.substr(9);
-            // We have a complete record
-            if (!name.empty()) {
-                m_ListStore->append(ConfigItem::create(name, val, desc));
-            }
-            name = ""; desc = ""; val = "";
-        }
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        m_ListStore->append(ConfigItem::create("Error", "Connection failed", "Ensure plugin is loaded"));
+        ::close(sock);
+        return;
     }
+
+    uint32_t count = 0;
+    readData(sock, &count, sizeof(count));
+
+    for (uint32_t i = 0; i < count; ++i) {
+        IPC::OptionType type;
+        readData(sock, &type, sizeof(type));
+
+        std::string name = readString(sock);
+        std::string desc = readString(sock);
+        std::string valStr = "";
+
+        if (type == IPC::OptionType::INT) {
+            int64_t val;
+            readData(sock, &val, sizeof(val));
+            valStr = std::to_string(val);
+        } else if (type == IPC::OptionType::FLOAT) {
+            double val;
+            readData(sock, &val, sizeof(val));
+            valStr = std::to_string(val);
+        } else if (type == IPC::OptionType::STRING) {
+            valStr = readString(sock);
+        } else if (type == IPC::OptionType::VEC2) {
+            double vec[2];
+            readData(sock, vec, sizeof(vec));
+            std::stringstream ss;
+            ss << "[" << vec[0] << ", " << vec[1] << "]";
+            valStr = ss.str();
+        } else {
+            valStr = "Unknown Type";
+        }
+        
+        m_ListStore->append(ConfigItem::create(name, valStr, desc));
+    }
+    ::close(sock);
 }
 
 int main(int argc, char* argv[])

@@ -5,7 +5,7 @@ OUTPUT = $(PLUGIN_NAME).so
 CXX = g++
 # Use pkg-config to get the correct include paths
 CXXFLAGS = -g -fPIC --no-gnu-unique -std=c++23 $(shell pkg-config --cflags hyprland)
-LDFLAGS = -shared
+LDFLAGS = -shared -pthread
 
 all: $(OUTPUT)
 
