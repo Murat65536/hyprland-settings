@@ -43,12 +43,14 @@ protected:
     Glib::RefPtr<Gio::ListStore<ConfigItem>> m_ListStore;
     Glib::RefPtr<Gtk::SingleSelection> m_SelectionModel;
 
-    void setup_column(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_desc(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
     void load_data();
+    void send_update(const std::string& name, const std::string& value);
 };
 
 ConfigWindow::ConfigWindow()
@@ -79,21 +81,21 @@ ConfigWindow::ConfigWindow()
     
     // Columns
     auto factory_name = Gtk::SignalListItemFactory::create();
-    factory_name->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column));
+    factory_name->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
     factory_name->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_name));
     auto col_name = Gtk::ColumnViewColumn::create("Option", factory_name);
     col_name->set_expand(true);
     m_ColumnView.append_column(col_name);
 
     auto factory_value = Gtk::SignalListItemFactory::create();
-    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column));
+    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_edit));
     factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_value));
-    auto col_val = Gtk::ColumnViewColumn::create("Value", factory_value);
+    auto col_val = Gtk::ColumnViewColumn::create("Value (Editable)", factory_value);
     col_val->set_expand(true);
     m_ColumnView.append_column(col_val);
 
     auto factory_desc = Gtk::SignalListItemFactory::create();
-    factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column));
+    factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
     factory_desc->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_desc));
     auto col_desc = Gtk::ColumnViewColumn::create("Description", factory_desc);
     col_desc->set_expand(true);
@@ -106,10 +108,30 @@ ConfigWindow::ConfigWindow()
 
 ConfigWindow::~ConfigWindow() {}
 
-void ConfigWindow::setup_column(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
     label->set_ellipsize(Pango::EllipsizeMode::END);
+    list_item->set_child(*label);
+}
+
+void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto label = Gtk::make_managed<Gtk::EditableLabel>();
+    label->set_halign(Gtk::Align::START);
+    
+    label->property_editing().signal_changed().connect([this, label, list_item]() {
+        if (!label->get_editing()) {
+            auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+            if (item) {
+                std::string newVal = label->get_text();
+                if (newVal != item->m_value) {
+                    item->m_value = newVal;
+                    send_update(item->m_name, newVal);
+                }
+            }
+        }
+    });
+
     list_item->set_child(*label);
 }
 
@@ -121,7 +143,7 @@ void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
 
 void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-    auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
+    auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
     if (item && label) label->set_text(item->m_value);
 }
 
@@ -154,6 +176,35 @@ std::string readString(int fd) {
     return std::string(buf.data());
 }
 
+void ConfigWindow::send_update(const std::string& name, const std::string& value) {
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
+
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        ::close(sock);
+        return;
+    }
+
+    IPC::RequestType req = IPC::RequestType::SET_OPTION;
+    write(sock, &req, sizeof(req));
+    
+    auto writeStr = [&](const std::string& s) {
+        uint32_t len = s.length();
+        write(sock, &len, sizeof(len));
+        if (len > 0) write(sock, s.c_str(), len);
+    };
+
+    writeStr(name);
+    writeStr(value);
+    
+    ::close(sock);
+    std::cout << "Sent update for " << name << ": " << value << std::endl;
+}
+
 void ConfigWindow::load_data() {
     m_ListStore->remove_all();
 
@@ -172,6 +223,10 @@ void ConfigWindow::load_data() {
         ::close(sock);
         return;
     }
+
+    // Send GET request
+    IPC::RequestType req = IPC::RequestType::GET_ALL;
+    write(sock, &req, sizeof(req));
 
     uint32_t count = 0;
     readData(sock, &count, sizeof(count));

@@ -27,71 +27,111 @@ void writeString(int fd, const std::string& str) {
         writeData(fd, str.c_str(), len);
 }
 
+// Helper to read data from socket
+bool readData(int fd, void* buffer, size_t size) {
+    size_t total = 0;
+    while (total < size) {
+        ssize_t r = read(fd, (char*)buffer + total, size - total);
+        if (r <= 0) return false;
+        total += r;
+    }
+    return true;
+}
+
+std::string readString(int fd) {
+    uint32_t len = 0;
+    if (!readData(fd, &len, sizeof(len))) return "";
+    if (len == 0) return "";
+    std::vector<char> buf(len + 1);
+    if (!readData(fd, buf.data(), len)) return "";
+    buf[len] = '\0';
+    return std::string(buf.data());
+}
+
 void handleClient(int client_fd) {
-    // Note: In a real plugin, you might need to lock Hyprland's config if a reload is happening
-    // to avoid reading during a write. For this example, we assume it's safe enough.
-    const auto& descriptions = g_pConfigManager->getAllDescriptions();
-    
-    // Send count
-    uint32_t count = descriptions.size();
-    writeData(client_fd, &count, sizeof(count));
+    IPC::RequestType reqType;
+    if (!readData(client_fd, &reqType, sizeof(reqType))) {
+        close(client_fd);
+        return;
+    }
 
-    for (const auto& desc : descriptions) {
-        // Prepare Data
-        IPC::OptionType type = IPC::OptionType::UNKNOWN;
+    if (reqType == IPC::RequestType::GET_ALL) {
+        const auto& descriptions = g_pConfigManager->getAllDescriptions();
         
-        auto* configVal = g_pConfigManager->getHyprlangConfigValuePtr(desc.value);
-        if (!configVal) {
-             type = IPC::OptionType::UNKNOWN;
-             writeData(client_fd, &type, sizeof(type));
-             writeString(client_fd, desc.value);
-             writeString(client_fd, desc.description);
-             continue;
-        }
+        // Send count
+        uint32_t count = descriptions.size();
+        writeData(client_fd, &count, sizeof(count));
 
-        try {
-            auto anyVal = configVal->getValue();
-            if (anyVal.type() == typeid(Hyprlang::INT)) {
-                type = IPC::OptionType::INT;
-                writeData(client_fd, &type, sizeof(type));
-                writeString(client_fd, desc.value);
-                writeString(client_fd, desc.description);
-                int64_t val = std::any_cast<Hyprlang::INT>(anyVal);
-                writeData(client_fd, &val, sizeof(val));
-            } else if (anyVal.type() == typeid(Hyprlang::FLOAT)) {
-                type = IPC::OptionType::FLOAT;
-                writeData(client_fd, &type, sizeof(type));
-                writeString(client_fd, desc.value);
-                writeString(client_fd, desc.description);
-                double val = std::any_cast<Hyprlang::FLOAT>(anyVal);
-                writeData(client_fd, &val, sizeof(val));
-            } else if (anyVal.type() == typeid(Hyprlang::STRING)) {
-                type = IPC::OptionType::STRING;
-                writeData(client_fd, &type, sizeof(type));
-                writeString(client_fd, desc.value);
-                writeString(client_fd, desc.description);
-                writeString(client_fd, std::any_cast<Hyprlang::STRING>(anyVal));
-            } else if (anyVal.type() == typeid(Hyprlang::VEC2)) {
-                type = IPC::OptionType::VEC2;
-                writeData(client_fd, &type, sizeof(type));
-                writeString(client_fd, desc.value);
-                writeString(client_fd, desc.description);
-                auto vec = std::any_cast<Hyprlang::VEC2>(anyVal);
-                double vecArr[2] = { vec.x, vec.y };
-                writeData(client_fd, vecArr, sizeof(vecArr));
-            } else {
-                type = IPC::OptionType::UNKNOWN;
-                writeData(client_fd, &type, sizeof(type));
-                writeString(client_fd, desc.value);
-                writeString(client_fd, desc.description);
+        for (const auto& desc : descriptions) {
+            IPC::OptionType type = IPC::OptionType::UNKNOWN;
+            
+            auto* configVal = g_pConfigManager->getHyprlangConfigValuePtr(desc.value);
+            if (!configVal) {
+                 type = IPC::OptionType::UNKNOWN;
+                 writeData(client_fd, &type, sizeof(type));
+                 writeString(client_fd, desc.value);
+                 writeString(client_fd, desc.description);
+                 continue;
             }
-        } catch (...) {
-             type = IPC::OptionType::UNKNOWN;
-             writeData(client_fd, &type, sizeof(type));
-             writeString(client_fd, desc.value);
-             writeString(client_fd, desc.description);
+
+            try {
+                auto anyVal = configVal->getValue();
+                if (anyVal.type() == typeid(Hyprlang::INT)) {
+                    type = IPC::OptionType::INT;
+                    writeData(client_fd, &type, sizeof(type));
+                    writeString(client_fd, desc.value);
+                    writeString(client_fd, desc.description);
+                    int64_t val = std::any_cast<Hyprlang::INT>(anyVal);
+                    writeData(client_fd, &val, sizeof(val));
+                } else if (anyVal.type() == typeid(Hyprlang::FLOAT)) {
+                    type = IPC::OptionType::FLOAT;
+                    writeData(client_fd, &type, sizeof(type));
+                    writeString(client_fd, desc.value);
+                    writeString(client_fd, desc.description);
+                    double val = std::any_cast<Hyprlang::FLOAT>(anyVal);
+                    writeData(client_fd, &val, sizeof(val));
+                } else if (anyVal.type() == typeid(Hyprlang::STRING)) {
+                    type = IPC::OptionType::STRING;
+                    writeData(client_fd, &type, sizeof(type));
+                    writeString(client_fd, desc.value);
+                    writeString(client_fd, desc.description);
+                    writeString(client_fd, std::any_cast<Hyprlang::STRING>(anyVal));
+                } else if (anyVal.type() == typeid(Hyprlang::VEC2)) {
+                    type = IPC::OptionType::VEC2;
+                    writeData(client_fd, &type, sizeof(type));
+                    writeString(client_fd, desc.value);
+                    writeString(client_fd, desc.description);
+                    auto vec = std::any_cast<Hyprlang::VEC2>(anyVal);
+                    double vecArr[2] = { vec.x, vec.y };
+                    writeData(client_fd, vecArr, sizeof(vecArr));
+                } else {
+                    type = IPC::OptionType::UNKNOWN;
+                    writeData(client_fd, &type, sizeof(type));
+                    writeString(client_fd, desc.value);
+                    writeString(client_fd, desc.description);
+                }
+            } catch (...) {
+                 type = IPC::OptionType::UNKNOWN;
+                 writeData(client_fd, &type, sizeof(type));
+                 writeString(client_fd, desc.value);
+                 writeString(client_fd, desc.description);
+            }
+        }
+    } 
+    else if (reqType == IPC::RequestType::SET_OPTION) {
+        std::string name = readString(client_fd);
+        std::string value = readString(client_fd);
+
+        if (!name.empty()) {
+            // Apply the config change
+            // g_pConfigManager->parseKeyword returns an error string on failure, empty on success
+            std::string result = g_pConfigManager->parseKeyword(name, value);
+            writeString(client_fd, result.empty() ? "OK" : result);
+        } else {
+            writeString(client_fd, "Invalid Name");
         }
     }
+
     close(client_fd);
 }
 
@@ -145,7 +185,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
     g_ipcThread = std::thread(ipcLoop);
-    g_ipcThread.detach(); // Detach to let it run in background
+    // g_ipcThread.detach(); // We join now
 
     HyprlandAPI::addNotification(PHANDLE, "Example Plugin Initialized with IPC", CHyprColor{0.2, 1.0, 0.2, 1.0}, 5000);
 
@@ -154,6 +194,6 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
 APICALL EXPORT void PLUGIN_EXIT() {
     g_runIPC = false;
-    // We detached the thread, so we just signal it to stop. 
-    // In a real scenario we might want to join it or cancel it more gracefully.
+    if (g_ipcThread.joinable())
+        g_ipcThread.join();
 }
