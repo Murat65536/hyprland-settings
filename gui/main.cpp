@@ -40,6 +40,7 @@ public:
 protected:
     void on_button_refresh();
 
+    Gtk::HeaderBar m_HeaderBar;
     Gtk::Box m_MainVBox;
     Gtk::Box m_HBox;
     Gtk::TreeView m_TreeView;
@@ -179,22 +180,41 @@ protected:
 
 ConfigWindow::ConfigWindow()
 : m_MainVBox(Gtk::Orientation::VERTICAL),
-  m_HBox(Gtk::Orientation::HORIZONTAL),
-  m_Button_Refresh("Refresh Options")
+  m_HBox(Gtk::Orientation::HORIZONTAL)
 {
-    set_title("Hyprland Settings Viewer");
-    set_default_size(900, 600);
+    set_title("Hyprland Settings");
+    set_default_size(950, 650);
+    
+    // Setup HeaderBar
+    set_titlebar(m_HeaderBar);
+    m_HeaderBar.set_show_title_buttons(true);
+    
+    m_Button_Refresh.set_icon_name("view-refresh-symbolic");
+    m_Button_Refresh.set_tooltip_text("Refresh Options");
+    m_Button_Refresh.signal_clicked().connect(sigc::mem_fun(*this, &ConfigWindow::on_button_refresh));
+    m_HeaderBar.pack_start(m_Button_Refresh);
 
-    m_MainVBox.set_margin(10);
     set_child(m_MainVBox);
 
-    // Refresh Button
-    m_Button_Refresh.signal_clicked().connect(sigc::mem_fun(*this, &ConfigWindow::on_button_refresh));
-    m_MainVBox.append(m_Button_Refresh);
+    // CSS Styling
+    auto css_provider = Gtk::CssProvider::create();
+    css_provider->load_from_data(
+        "window { font-size: 11pt; }"
+        "headerbar { padding: 0 6px; min-height: 46px; }"
+        ".sidebar { background-color: alpha(@window_fg_color, 0.05); border-right: 1px solid alpha(@window_fg_color, 0.1); }"
+        ".sidebar row { padding: 8px 12px; border-radius: 6px; margin: 2px 8px; }"
+        ".sidebar row:selected { background-color: @accent_bg_color; color: @accent_fg_color; }"
+        "columnview { background: transparent; }"
+        "columnview row { padding: 8px; border-bottom: 1px solid alpha(@window_fg_color, 0.05); }"
+        "columnview row:selected { background-color: alpha(@accent_bg_color, 0.1); color: @window_fg_color; }"
+        "entry { padding: 6px; border-radius: 6px; }"
+        "button { padding: 4px 12px; border-radius: 6px; }"
+        "frame { border-radius: 12px; border: 1px solid alpha(@window_fg_color, 0.1); padding: 12px; }"
+    );
+    Gtk::StyleContext::add_provider_for_display(Gdk::Display::get_default(), css_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     // HBox for Sidebar + Stack
     m_HBox.set_expand(true);
-    m_HBox.set_margin_top(10);
     m_MainVBox.append(m_HBox);
 
     // Setup TreeView for nested sections
@@ -204,17 +224,20 @@ ConfigWindow::ConfigWindow()
     m_TreeView.set_headers_visible(false);
     m_TreeView.get_selection()->signal_changed().connect(
         sigc::mem_fun(*this, &ConfigWindow::on_section_selected));
+    m_TreeView.add_css_class("sidebar");
     
     // Wrap sidebar in a scrolled window
     auto sidebarScroll = Gtk::make_managed<Gtk::ScrolledWindow>();
     sidebarScroll->set_child(m_TreeView);
     sidebarScroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    sidebarScroll->set_size_request(200, -1);
+    sidebarScroll->set_size_request(240, -1);
+    sidebarScroll->add_css_class("sidebar-scroll");
     m_HBox.append(*sidebarScroll);
 
     // Stack
     m_Stack.set_expand(true);
-    m_Stack.set_transition_type(Gtk::StackTransitionType::SLIDE_LEFT_RIGHT);
+    m_Stack.set_transition_type(Gtk::StackTransitionType::CROSSFADE);
+    m_Stack.set_margin(16);
     m_HBox.append(m_Stack);
 
     // Create keyword store
@@ -242,7 +265,7 @@ void ConfigWindow::create_section_view(const std::string& sectionPath) {
     factory_name->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
     factory_name->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_name));
     auto col_name = Gtk::ColumnViewColumn::create("Option", factory_name);
-    col_name->set_expand(true);
+    col_name->set_fixed_width(280);
     columnView->append_column(col_name);
 
     auto factory_value = Gtk::SignalListItemFactory::create();
