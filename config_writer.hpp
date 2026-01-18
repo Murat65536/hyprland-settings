@@ -469,4 +469,173 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
     return result;
 }
 
+// Structure to hold a keyword entry
+struct KeywordEntry {
+    std::string type;      // exec-once, execr-once, etc.
+    std::string value;     // The command
+    std::string filePath;  // Which config file it's in
+    int lineNumber;        // Line number in that file
+};
+
+// Get all keyword entries from config files
+inline std::vector<KeywordEntry> getKeywordEntries() {
+    std::vector<KeywordEntry> entries;
+    std::string mainConfig = getConfigPath();
+    if (mainConfig.empty()) return entries;
+    
+    auto configFiles = collectConfigFiles(mainConfig);
+    
+    // Regex for keyword lines: exec-once = ..., execr-once = ..., etc.
+    std::regex keywordRegex(R"(^\s*(exec-once|execr-once|exec|execr|exec-shutdown)\s*[=:]\s*(.+)\s*$)");
+    
+    for (const auto& filePath : configFiles) {
+        std::ifstream inFile(filePath);
+        if (!inFile) continue;
+        
+        std::string line;
+        int lineNum = 0;
+        
+        while (std::getline(inFile, line)) {
+            lineNum++;
+            
+            // Remove comments
+            std::string checkLine = line;
+            size_t commentPos = checkLine.find('#');
+            if (commentPos != std::string::npos) {
+                checkLine = checkLine.substr(0, commentPos);
+            }
+            
+            std::smatch match;
+            if (std::regex_match(checkLine, match, keywordRegex)) {
+                KeywordEntry entry;
+                entry.type = match[1].str();
+                entry.value = trim(match[2].str());
+                entry.filePath = filePath;
+                entry.lineNumber = lineNum;
+                entries.push_back(entry);
+            }
+        }
+    }
+    
+    return entries;
+}
+
+// Add a new keyword entry to the main config file
+inline UpdateResult addKeywordEntry(const std::string& type, const std::string& value) {
+    UpdateResult result;
+    std::string mainConfig = getConfigPath();
+    
+    if (mainConfig.empty()) {
+        result.error = "Could not determine config path";
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(mainConfig);
+    
+    // Find a good place to insert - after other keywords of the same type, or at the beginning
+    int insertLine = -1;
+    for (int i = lines.size() - 1; i >= 0; i--) {
+        std::string checkLine = lines[i];
+        size_t commentPos = checkLine.find('#');
+        if (commentPos != std::string::npos) {
+            checkLine = checkLine.substr(0, commentPos);
+        }
+        checkLine = trim(checkLine);
+        
+        if (checkLine.find(type) == 0) {
+            insertLine = i + 1;
+            break;
+        }
+    }
+    
+    std::string newLine = type + " = " + value;
+    
+    if (insertLine >= 0) {
+        lines.insert(lines.begin() + insertLine, newLine);
+    } else {
+        // Insert at beginning (after any initial comments)
+        int firstNonComment = 0;
+        for (size_t i = 0; i < lines.size(); i++) {
+            std::string trimmed = trim(lines[i]);
+            if (!trimmed.empty() && trimmed[0] != '#') {
+                firstNonComment = i;
+                break;
+            }
+        }
+        lines.insert(lines.begin() + firstNonComment, newLine);
+    }
+    
+    if (!writeLinesToFile(mainConfig, lines)) {
+        result.error = "Could not write to config file";
+        return result;
+    }
+    
+    result.success = true;
+    result.filePath = mainConfig;
+    return result;
+}
+
+// Remove a keyword entry by file path and line number
+inline UpdateResult removeKeywordEntry(const std::string& filePath, int lineNumber) {
+    UpdateResult result;
+    
+    if (!std::filesystem::exists(filePath)) {
+        result.error = "File does not exist: " + filePath;
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(filePath);
+    
+    if (lineNumber < 1 || lineNumber > (int)lines.size()) {
+        result.error = "Invalid line number";
+        return result;
+    }
+    
+    lines.erase(lines.begin() + (lineNumber - 1));
+    
+    if (!writeLinesToFile(filePath, lines)) {
+        result.error = "Could not write to file";
+        return result;
+    }
+    
+    result.success = true;
+    result.filePath = filePath;
+    return result;
+}
+
+// Update a keyword entry
+inline UpdateResult updateKeywordEntry(const std::string& filePath, int lineNumber, 
+                                        const std::string& type, const std::string& value) {
+    UpdateResult result;
+    
+    if (!std::filesystem::exists(filePath)) {
+        result.error = "File does not exist: " + filePath;
+        return result;
+    }
+    
+    std::vector<std::string> lines = readLinesFromFile(filePath);
+    
+    if (lineNumber < 1 || lineNumber > (int)lines.size()) {
+        result.error = "Invalid line number";
+        return result;
+    }
+    
+    // Preserve indentation
+    std::string& targetLine = lines[lineNumber - 1];
+    size_t indentEnd = targetLine.find_first_not_of(" \t");
+    std::string indent = (indentEnd != std::string::npos) ? targetLine.substr(0, indentEnd) : "";
+    
+    targetLine = indent + type + " = " + value;
+    
+    if (!writeLinesToFile(filePath, lines)) {
+        result.error = "Could not write to file";
+        return result;
+    }
+    
+    result.success = true;
+    result.wasExisting = true;
+    result.filePath = filePath;
+    return result;
+}
+
 } // namespace ConfigWriter

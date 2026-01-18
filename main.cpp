@@ -132,6 +132,62 @@ void handleClient(int client_fd) {
             writeString(client_fd, "Invalid Name");
         }
     }
+    else if (reqType == IPC::RequestType::GET_KEYWORDS) {
+        auto entries = ConfigWriter::getKeywordEntries();
+        
+        uint32_t count = entries.size();
+        writeData(client_fd, &count, sizeof(count));
+        
+        for (const auto& entry : entries) {
+            writeString(client_fd, entry.type);
+            writeString(client_fd, entry.value);
+            writeString(client_fd, entry.filePath);
+            int32_t lineNum = entry.lineNumber;
+            writeData(client_fd, &lineNum, sizeof(lineNum));
+        }
+    }
+    else if (reqType == IPC::RequestType::ADD_KEYWORD) {
+        std::string type = readString(client_fd);
+        std::string value = readString(client_fd);
+        
+        auto result = ConfigWriter::addKeywordEntry(type, value);
+        
+        if (result.success) {
+            // Apply at runtime for exec keywords
+            g_pConfigManager->parseKeyword(type, value);
+            writeString(client_fd, "OK:ADDED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
+    else if (reqType == IPC::RequestType::REMOVE_KEYWORD) {
+        std::string filePath = readString(client_fd);
+        int32_t lineNumber;
+        readData(client_fd, &lineNumber, sizeof(lineNumber));
+        
+        auto result = ConfigWriter::removeKeywordEntry(filePath, lineNumber);
+        
+        if (result.success) {
+            writeString(client_fd, "OK:REMOVED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
+    else if (reqType == IPC::RequestType::UPDATE_KEYWORD) {
+        std::string filePath = readString(client_fd);
+        int32_t lineNumber;
+        readData(client_fd, &lineNumber, sizeof(lineNumber));
+        std::string type = readString(client_fd);
+        std::string value = readString(client_fd);
+        
+        auto result = ConfigWriter::updateKeywordEntry(filePath, lineNumber, type, value);
+        
+        if (result.success) {
+            writeString(client_fd, "OK:UPDATED");
+        } else {
+            writeString(client_fd, "ERROR:" + result.error);
+        }
+    }
 
     close(client_fd);
 }

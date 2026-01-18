@@ -82,7 +82,27 @@ protected:
         }
     };
 
+    // Keyword item for the keywords list
+    class KeywordItem : public Glib::Object {
+    public:
+        std::string m_type;      // exec-once, execr, etc.
+        std::string m_value;     // The command
+        std::string m_filePath;  // Config file location
+        int m_lineNumber;        // Line in the file
+
+        static Glib::RefPtr<KeywordItem> create(const std::string& type, const std::string& value,
+                                                  const std::string& filePath, int lineNumber) {
+            return Glib::make_refptr_for_instance<KeywordItem>(new KeywordItem(type, value, filePath, lineNumber));
+        }
+
+    protected:
+        KeywordItem(const std::string& type, const std::string& value,
+                    const std::string& filePath, int lineNumber)
+            : m_type(type), m_value(value), m_filePath(filePath), m_lineNumber(lineNumber) {}
+    };
+
     std::map<std::string, Glib::RefPtr<Gio::ListStore<ConfigItem>>> m_SectionStores;
+    Glib::RefPtr<Gio::ListStore<KeywordItem>> m_KeywordStore;
     SectionNode m_RootSection;
     std::map<std::string, Gtk::TreeModel::iterator> m_SectionIters;
 
@@ -91,9 +111,23 @@ protected:
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
+    // Keyword-specific methods
+    void setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void setup_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void setup_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void bind_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void bind_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    
     void load_data();
+    void load_keywords();
     void send_update(const std::string& name, const std::string& value);
+    void send_keyword_add(const std::string& type, const std::string& value);
+    void send_keyword_remove(const std::string& filePath, int lineNumber);
+    void send_keyword_update(const std::string& filePath, int lineNumber, 
+                              const std::string& type, const std::string& value);
     void create_section_view(const std::string& sectionPath);
+    void create_keywords_view();
     void on_section_selected();
     void add_section_to_tree(const std::string& sectionPath);
     std::string get_section_path(const std::string& optionName);
@@ -139,6 +173,9 @@ ConfigWindow::ConfigWindow()
     m_Stack.set_transition_type(Gtk::StackTransitionType::SLIDE_LEFT_RIGHT);
     m_HBox.append(m_Stack);
 
+    // Create keyword store
+    m_KeywordStore = Gio::ListStore<KeywordItem>::create();
+
     load_data();
 }
 
@@ -173,6 +210,148 @@ void ConfigWindow::create_section_view(const std::string& sectionPath) {
     scrolledWindow->set_child(*columnView);
     
     m_Stack.add(*scrolledWindow, sectionPath, sectionPath);
+}
+
+void ConfigWindow::create_keywords_view() {
+    auto mainBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+    mainBox->set_spacing(10);
+    mainBox->set_margin(10);
+
+    // Add new keyword section
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Keyword");
+    auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
+    addBox->set_spacing(5);
+    addBox->set_margin(10);
+
+    auto typeCombo = Gtk::make_managed<Gtk::DropDown>();
+    auto typeModel = Gtk::StringList::create({"exec-once", "execr-once", "exec", "execr", "exec-shutdown"});
+    typeCombo->set_model(typeModel);
+    typeCombo->set_selected(0);
+
+    auto valueEntry = Gtk::make_managed<Gtk::Entry>();
+    valueEntry->set_placeholder_text("Command to execute...");
+    valueEntry->set_hexpand(true);
+
+    auto addButton = Gtk::make_managed<Gtk::Button>("Add");
+    addButton->signal_clicked().connect([this, typeCombo, typeModel, valueEntry]() {
+        auto selected = typeCombo->get_selected();
+        if (selected != GTK_INVALID_LIST_POSITION) {
+            auto typeStr = typeModel->get_string(selected);
+            std::string value = valueEntry->get_text();
+            if (!value.empty()) {
+                send_keyword_add(typeStr, value);
+                valueEntry->set_text("");
+                load_keywords();
+            }
+        }
+    });
+
+    addBox->append(*typeCombo);
+    addBox->append(*valueEntry);
+    addBox->append(*addButton);
+    addFrame->set_child(*addBox);
+    mainBox->append(*addFrame);
+
+    // Keywords list
+    auto selectionModel = Gtk::SingleSelection::create(m_KeywordStore);
+    auto columnView = Gtk::make_managed<Gtk::ColumnView>();
+    columnView->set_model(selectionModel);
+    columnView->add_css_class("data-table");
+
+    // Type column
+    auto factory_type = Gtk::SignalListItemFactory::create();
+    factory_type->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_type));
+    factory_type->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_type));
+    auto col_type = Gtk::ColumnViewColumn::create("Type", factory_type);
+    col_type->set_fixed_width(120);
+    columnView->append_column(col_type);
+
+    // Value column
+    auto factory_value = Gtk::SignalListItemFactory::create();
+    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_value));
+    factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_value));
+    auto col_value = Gtk::ColumnViewColumn::create("Command", factory_value);
+    col_value->set_expand(true);
+    columnView->append_column(col_value);
+
+    // Actions column
+    auto factory_actions = Gtk::SignalListItemFactory::create();
+    factory_actions->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_actions));
+    factory_actions->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_actions));
+    auto col_actions = Gtk::ColumnViewColumn::create("Actions", factory_actions);
+    col_actions->set_fixed_width(80);
+    columnView->append_column(col_actions);
+
+    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
+    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    scrolledWindow->set_child(*columnView);
+    scrolledWindow->set_vexpand(true);
+    mainBox->append(*scrolledWindow);
+
+    m_Stack.add(*mainBox, "__keywords__", "Keywords");
+}
+
+void ConfigWindow::setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto label = Gtk::make_managed<Gtk::Label>();
+    label->set_halign(Gtk::Align::START);
+    list_item->set_child(*label);
+}
+
+void ConfigWindow::setup_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto label = Gtk::make_managed<Gtk::EditableLabel>();
+    label->set_halign(Gtk::Align::START);
+    label->set_hexpand(true);
+    
+    label->property_editing().signal_changed().connect([this, label, list_item]() {
+        if (!label->get_editing()) {
+            auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
+            if (item) {
+                std::string newVal = label->get_text();
+                if (newVal != item->m_value) {
+                    send_keyword_update(item->m_filePath, item->m_lineNumber, item->m_type, newVal);
+                    load_keywords();
+                }
+            }
+        }
+    });
+
+    list_item->set_child(*label);
+}
+
+void ConfigWindow::setup_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto button = Gtk::make_managed<Gtk::Button>();
+    button->set_icon_name("user-trash-symbolic");
+    button->set_tooltip_text("Delete");
+    list_item->set_child(*button);
+}
+
+void ConfigWindow::bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
+    auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
+    if (item && label) {
+        label->set_text(item->m_type);
+        label->set_tooltip_text("File: " + item->m_filePath + "\nLine: " + std::to_string(item->m_lineNumber));
+    }
+}
+
+void ConfigWindow::bind_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
+    auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
+    if (item && label) {
+        label->set_text(item->m_value);
+    }
+}
+
+void ConfigWindow::bind_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
+    auto button = dynamic_cast<Gtk::Button*>(list_item->get_child());
+    if (item && button) {
+        // Disconnect any previous handler
+        button->signal_clicked().connect([this, item]() {
+            send_keyword_remove(item->m_filePath, item->m_lineNumber);
+            load_keywords();
+        });
+    }
 }
 
 void ConfigWindow::on_section_selected() {
@@ -325,6 +504,138 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
     std::cout << "Update " << name << " = " << value << " -> " << response << std::endl;
 }
 
+void ConfigWindow::send_keyword_add(const std::string& type, const std::string& value) {
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
+
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        ::close(sock);
+        return;
+    }
+
+    IPC::RequestType req = IPC::RequestType::ADD_KEYWORD;
+    write(sock, &req, sizeof(req));
+    
+    auto writeStr = [&](const std::string& s) {
+        uint32_t len = s.length();
+        write(sock, &len, sizeof(len));
+        if (len > 0) write(sock, s.c_str(), len);
+    };
+
+    writeStr(type);
+    writeStr(value);
+    
+    std::string response = readString(sock);
+    ::close(sock);
+    std::cout << "Add keyword " << type << " = " << value << " -> " << response << std::endl;
+}
+
+void ConfigWindow::send_keyword_remove(const std::string& filePath, int lineNumber) {
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
+
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        ::close(sock);
+        return;
+    }
+
+    IPC::RequestType req = IPC::RequestType::REMOVE_KEYWORD;
+    write(sock, &req, sizeof(req));
+    
+    auto writeStr = [&](const std::string& s) {
+        uint32_t len = s.length();
+        write(sock, &len, sizeof(len));
+        if (len > 0) write(sock, s.c_str(), len);
+    };
+
+    writeStr(filePath);
+    int32_t lineNum = lineNumber;
+    write(sock, &lineNum, sizeof(lineNum));
+    
+    std::string response = readString(sock);
+    ::close(sock);
+    std::cout << "Remove keyword at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
+}
+
+void ConfigWindow::send_keyword_update(const std::string& filePath, int lineNumber,
+                                        const std::string& type, const std::string& value) {
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
+
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        ::close(sock);
+        return;
+    }
+
+    IPC::RequestType req = IPC::RequestType::UPDATE_KEYWORD;
+    write(sock, &req, sizeof(req));
+    
+    auto writeStr = [&](const std::string& s) {
+        uint32_t len = s.length();
+        write(sock, &len, sizeof(len));
+        if (len > 0) write(sock, s.c_str(), len);
+    };
+
+    writeStr(filePath);
+    int32_t lineNum = lineNumber;
+    write(sock, &lineNum, sizeof(lineNum));
+    writeStr(type);
+    writeStr(value);
+    
+    std::string response = readString(sock);
+    ::close(sock);
+    std::cout << "Update keyword at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
+}
+
+void ConfigWindow::load_keywords() {
+    m_KeywordStore->remove_all();
+
+    int sock = 0;
+    struct sockaddr_un serv_addr;
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        std::cerr << "Socket creation error" << std::endl;
+        return;
+    }
+
+    serv_addr.sun_family = AF_UNIX;
+    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        std::cerr << "Connection failed for keywords" << std::endl;
+        ::close(sock);
+        return;
+    }
+
+    IPC::RequestType req = IPC::RequestType::GET_KEYWORDS;
+    write(sock, &req, sizeof(req));
+
+    uint32_t count = 0;
+    readData(sock, &count, sizeof(count));
+
+    for (uint32_t i = 0; i < count; ++i) {
+        std::string type = readString(sock);
+        std::string value = readString(sock);
+        std::string filePath = readString(sock);
+        int32_t lineNumber;
+        readData(sock, &lineNumber, sizeof(lineNumber));
+
+        m_KeywordStore->append(KeywordItem::create(type, value, filePath, lineNumber));
+    }
+    ::close(sock);
+}
+
 void ConfigWindow::load_data() {
     // Clear existing stores and tree
     for (auto& kv : m_SectionStores) {
@@ -382,22 +693,44 @@ void ConfigWindow::load_data() {
     }
     ::close(sock);
 
-    // Create all section views in the tree (sorted order for consistent display)
+    // Create Variables parent section
+    auto variablesIter = m_SectionTreeStore->append();
+    (*variablesIter)[m_SectionColumns.m_col_name] = "Variables";
+    (*variablesIter)[m_SectionColumns.m_col_full_path] = "__variables__";
+    m_SectionIters["__variables__"] = variablesIter;
+
+    // Create all section views under Variables in the tree
     for (const auto& sectionPath : allSections) {
-        add_section_to_tree(sectionPath);
+        auto parts = split_path(sectionPath, ':');
+        std::string currentPath;
+        Gtk::TreeModel::iterator parentIter = variablesIter;
+        
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (i > 0) currentPath += ":";
+            currentPath += parts[i];
+            
+            if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
+                auto newIter = m_SectionTreeStore->append(parentIter->children());
+                (*newIter)[m_SectionColumns.m_col_name] = parts[i];
+                (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
+                m_SectionIters[currentPath] = newIter;
+                create_section_view(currentPath);
+            }
+            parentIter = m_SectionIters[currentPath];
+        }
     }
     
-    // Expand all rows in the tree for visibility
-    m_TreeView.expand_all();
+    // Expand Variables section
+    m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
 
     // Second pass: add options to their sections
     for (const auto& [name, valStr, desc, setByUser] : allOptions) {
         std::string sectionPath = get_section_path(name);
         
         if (sectionPath.empty()) {
-            // Root level option - create a special root section if needed
+            // Root level option - add under Variables
             if (m_SectionStores.find("") == m_SectionStores.end()) {
-                auto iter = m_SectionTreeStore->prepend();
+                auto iter = m_SectionTreeStore->append(variablesIter->children());
                 (*iter)[m_SectionColumns.m_col_name] = "(root)";
                 (*iter)[m_SectionColumns.m_col_full_path] = "";
                 m_SectionIters[""] = iter;
@@ -409,6 +742,16 @@ void ConfigWindow::load_data() {
             m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
         }
     }
+
+    // Add Keywords section to the sidebar
+    auto keywordsIter = m_SectionTreeStore->append();
+    (*keywordsIter)[m_SectionColumns.m_col_name] = "Keywords";
+    (*keywordsIter)[m_SectionColumns.m_col_full_path] = "__keywords__";
+    m_SectionIters["__keywords__"] = keywordsIter;
+    
+    // Create and populate keywords view
+    create_keywords_view();
+    load_keywords();
 }
 
 int main(int argc, char* argv[])
