@@ -1,4 +1,4 @@
-PLUGIN_NAME = example_plugin
+PLUGIN_NAME = hyprland_settings
 SOURCE = main.cpp
 OUTPUT = $(PLUGIN_NAME).so
 

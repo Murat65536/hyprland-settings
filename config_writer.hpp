@@ -164,9 +164,19 @@ inline SearchResult findConfigValue(const std::string& key) {
     std::string mainConfig = getConfigPath();
     if (mainConfig.empty()) return result;
     
-    size_t colonPos = key.find(':');
-    std::string category = (colonPos != std::string::npos) ? key.substr(0, colonPos) : "";
-    std::string varName = (colonPos != std::string::npos) ? key.substr(colonPos + 1) : key;
+    // Parse nested categories (e.g., "decoration:shadow:enabled")
+    std::vector<std::string> parts;
+    size_t pos = 0;
+    size_t colonPos;
+    while ((colonPos = key.find(':', pos)) != std::string::npos) {
+        parts.push_back(key.substr(pos, colonPos - pos));
+        pos = colonPos + 1;
+    }
+    parts.push_back(key.substr(pos));
+    
+    std::string varName = parts.back();
+    parts.pop_back();
+    std::vector<std::string> categories = parts;
     
     auto configFiles = collectConfigFiles(mainConfig);
     
@@ -176,7 +186,9 @@ inline SearchResult findConfigValue(const std::string& key) {
         
         std::string line;
         int lineNum = 0;
-        bool inTargetCategory = category.empty();
+        std::vector<int> categoryDepths(categories.size(), 0);
+        int currentCategoryMatch = 0;
+        bool inTargetCategory = categories.empty();
         int braceDepth = 0;
         
         while (std::getline(inFile, line)) {
@@ -191,12 +203,24 @@ inline SearchResult findConfigValue(const std::string& key) {
             
             if (trimmedLine.empty()) continue;
             
-            if (!category.empty()) {
+            if (!categories.empty()) {
                 if (!inTargetCategory) {
-                    if (trimmedLine == category + " {" || trimmedLine == category + "{") {
-                        inTargetCategory = true;
-                        braceDepth = 1;
-                        continue;
+                    // Check if we're entering the next expected category
+                    if (currentCategoryMatch < (int)categories.size()) {
+                        const std::string& expectedCat = categories[currentCategoryMatch];
+                        size_t catLen = expectedCat.length();
+                        if (trimmedLine.length() >= catLen && 
+                            trimmedLine.substr(0, catLen) == expectedCat) {
+                            std::string remainder = trim(trimmedLine.substr(catLen));
+                            if (remainder == "{") {
+                                currentCategoryMatch++;
+                                braceDepth = 1;
+                                if (currentCategoryMatch == (int)categories.size()) {
+                                    inTargetCategory = true;
+                                }
+                                continue;
+                            }
+                        }
                     }
                 } else {
                     for (char c : trimmedLine) {
@@ -205,17 +229,23 @@ inline SearchResult findConfigValue(const std::string& key) {
                     }
                     if (braceDepth == 0) {
                         inTargetCategory = false;
+                        currentCategoryMatch = 0;
                         continue;
                     }
                 }
             }
             
-            if (inTargetCategory || category.empty()) {
-                if (trimmedLine.starts_with(varName + " =") || trimmedLine.starts_with(varName + "=")) {
-                    result.found = true;
-                    result.filePath = filePath;
-                    result.lineNumber = lineNum;
-                    result.originalLine = line;
+            if (inTargetCategory || categories.empty()) {
+                size_t varLen = varName.length();
+                if (trimmedLine.length() >= varLen && 
+                    trimmedLine.substr(0, varLen) == varName) {
+                    std::string remainder = trim(trimmedLine.substr(varLen));
+                    if (remainder.length() > 0 && remainder[0] == '=') {
+                        result.found = true;
+                        result.filePath = filePath;
+                        result.lineNumber = lineNum;
+                        result.originalLine = line;
+                    }
                 }
             }
         }
@@ -233,9 +263,19 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         return result;
     }
     
-    size_t colonPos = key.find(':');
-    std::string category = (colonPos != std::string::npos) ? key.substr(0, colonPos) : "";
-    std::string varName = (colonPos != std::string::npos) ? key.substr(colonPos + 1) : key;
+    // Parse nested categories (e.g., "decoration:shadow:enabled")
+    std::vector<std::string> parts;
+    size_t pos = 0;
+    size_t colonPos;
+    while ((colonPos = key.find(':', pos)) != std::string::npos) {
+        parts.push_back(key.substr(pos, colonPos - pos));
+        pos = colonPos + 1;
+    }
+    parts.push_back(key.substr(pos));
+    
+    std::string varName = parts.back();
+    parts.pop_back();
+    std::vector<std::string> categories = parts;
     
     SearchResult search = findConfigValue(key);
     
@@ -296,8 +336,9 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
     
     std::vector<std::string> lines;
     std::string line;
-    bool inTargetCategory = category.empty();
-    int categoryStartLine = -1;
+    int currentCategoryMatch = 0;
+    bool inTargetCategory = categories.empty();
+    std::vector<int> categoryStartLines;
     int categoryEndLine = -1;
     int braceDepth = 0;
     int lineNum = 0;
@@ -315,16 +356,27 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
         
         if (trimmedLine.empty()) continue;
         
-        if (!category.empty() && !inTargetCategory) {
-            if (trimmedLine == category + " {" || trimmedLine == category + "{") {
-                inTargetCategory = true;
-                categoryStartLine = lineNum - 1;
-                braceDepth = 1;
-                continue;
+        if (!categories.empty() && !inTargetCategory) {
+            if (currentCategoryMatch < (int)categories.size()) {
+                const std::string& expectedCat = categories[currentCategoryMatch];
+                size_t catLen = expectedCat.length();
+                if (trimmedLine.length() >= catLen && 
+                    trimmedLine.substr(0, catLen) == expectedCat) {
+                    std::string remainder = trim(trimmedLine.substr(catLen));
+                    if (remainder == "{") {
+                        categoryStartLines.push_back(lineNum - 1);
+                        currentCategoryMatch++;
+                        braceDepth = 1;
+                        if (currentCategoryMatch == (int)categories.size()) {
+                            inTargetCategory = true;
+                        }
+                        continue;
+                    }
+                }
             }
         }
         
-        if (inTargetCategory && !category.empty()) {
+        if (inTargetCategory && !categories.empty()) {
             for (char c : trimmedLine) {
                 if (c == '{') braceDepth++;
                 else if (c == '}') braceDepth--;
@@ -338,16 +390,25 @@ inline UpdateResult updateConfigValue(const std::string& key, const std::string&
     inFile.close();
     
     // Add the value
-    if (category.empty()) {
+    std::string indent(categories.size() * 4, ' ');
+    if (categories.empty()) {
         lines.push_back(varName + " = " + value);
-    } else if (categoryStartLine >= 0) {
-        int insertLine = (categoryEndLine >= 0) ? categoryEndLine : categoryStartLine + 1;
-        lines.insert(lines.begin() + insertLine, "    " + varName + " = " + value);
+    } else if (!categoryStartLines.empty() && categoryStartLines.size() == categories.size()) {
+        // All categories exist, insert at the end of the innermost category
+        int insertLine = (categoryEndLine >= 0) ? categoryEndLine : categoryStartLines.back() + 1;
+        lines.insert(lines.begin() + insertLine, indent + varName + " = " + value);
     } else {
+        // Need to create missing categories
         lines.push_back("");
-        lines.push_back(category + " {");
-        lines.push_back("    " + varName + " = " + value);
-        lines.push_back("}");
+        for (size_t i = 0; i < categories.size(); i++) {
+            std::string catIndent(i * 4, ' ');
+            lines.push_back(catIndent + categories[i] + " {");
+        }
+        lines.push_back(indent + varName + " = " + value);
+        for (int i = categories.size() - 1; i >= 0; i--) {
+            std::string catIndent(i * 4, ' ');
+            lines.push_back(catIndent + "}");
+        }
     }
     
     std::ofstream outFile(mainConfig);
