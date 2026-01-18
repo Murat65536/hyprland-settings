@@ -133,7 +133,8 @@ void ConfigWindow::create_section_view(const std::string& sectionName) {
     factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_desc));
     factory_desc->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_desc));
     auto col_desc = Gtk::ColumnViewColumn::create("Description", factory_desc);
-    col_desc->set_expand(true);
+    col_desc->set_fixed_width(1000);
+    col_desc->set_resizable(true);
     columnView->append_column(col_desc);
 
     auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
@@ -153,11 +154,11 @@ void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_ite
 void ConfigWindow::setup_column_desc(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
+    label->set_valign(Gtk::Align::START);
     label->set_wrap(true);
     label->set_wrap_mode(Pango::WrapMode::WORD_CHAR);
-    label->set_ellipsize(Pango::EllipsizeMode::NONE);
     label->set_xalign(0.0);
-    label->set_width_chars(10);
+    
     list_item->set_child(*label);
 }
 
