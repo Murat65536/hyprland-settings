@@ -33,14 +33,15 @@ protected:
         std::string m_short_name;
         std::string m_value;
         std::string m_desc;
+        bool m_setByUser = false;  // Whether this was explicitly set in config
 
-        static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value, const std::string& desc) {
-            return Glib::make_refptr_for_instance<ConfigItem>(new ConfigItem(name, value, desc));
+        static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value, const std::string& desc, bool setByUser) {
+            return Glib::make_refptr_for_instance<ConfigItem>(new ConfigItem(name, value, desc, setByUser));
         }
 
     protected:
-        ConfigItem(const std::string& name, const std::string& value, const std::string& desc) 
-            : m_name(name), m_value(value), m_desc(desc) {
+        ConfigItem(const std::string& name, const std::string& value, const std::string& desc, bool setByUser) 
+            : m_name(name), m_value(value), m_desc(desc), m_setByUser(setByUser) {
             size_t pos = name.find(':');
             if (pos != std::string::npos) {
                 m_short_name = name.substr(pos + 1);
@@ -234,7 +235,8 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
         return;
     }
 
-    IPC::RequestType req = IPC::RequestType::SET_OPTION;
+    // Use SET_OPTION_PERSIST to write to config file
+    IPC::RequestType req = IPC::RequestType::SET_OPTION_PERSIST;
     write(sock, &req, sizeof(req));
     
     auto writeStr = [&](const std::string& s) {
@@ -246,8 +248,11 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
     writeStr(name);
     writeStr(value);
     
+    // Read response
+    std::string response = readString(sock);
+    
     ::close(sock);
-    std::cout << "Sent update for " << name << ": " << value << std::endl;
+    std::cout << "Update " << name << " = " << value << " -> " << response << std::endl;
 }
 
 void ConfigWindow::load_data() {
@@ -287,8 +292,12 @@ void ConfigWindow::load_data() {
         std::string desc = readString(sock);
         std::string valStr = readString(sock);
         
+        // Read m_bSetByUser flag
+        uint8_t setByUser = 0;
+        readData(sock, &setByUser, sizeof(setByUser));
+        
         // Determine section
-        std::string section = "General";
+        std::string section = "";
         size_t pos = name.find(':');
         if (pos != std::string::npos) {
             section = name.substr(0, pos);
@@ -299,7 +308,7 @@ void ConfigWindow::load_data() {
             create_section_view(section);
         }
 
-        m_SectionStores[section]->append(ConfigItem::create(name, valStr, desc));
+        m_SectionStores[section]->append(ConfigItem::create(name, valStr, desc, setByUser != 0));
     }
     ::close(sock);
 }

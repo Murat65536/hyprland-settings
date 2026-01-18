@@ -1,6 +1,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigDataValues.hpp>
+#include <hyprland/src/helpers/MiscFunctions.hpp>
 #include <hyprlang.hpp>
 #include <thread>
 #include <vector>
@@ -12,6 +13,8 @@
 #include <any>
 #include <typeindex>
 #include "ipc_common.hpp"
+#define HYPRLAND_PLUGIN
+#include "config_writer.hpp"
 
 inline HANDLE PHANDLE = nullptr;
 std::thread g_ipcThread;
@@ -70,6 +73,8 @@ void handleClient(int client_fd) {
                  writeString(client_fd, desc.value);
                  writeString(client_fd, desc.description);
                  writeString(client_fd, "");
+                 uint8_t setByUser = 0;
+                 writeData(client_fd, &setByUser, sizeof(setByUser));
                  continue;
             }
 
@@ -95,6 +100,10 @@ void handleClient(int client_fd) {
             } else {
                 writeString(client_fd, "UNKNOWN");
             }
+            
+            // Send m_bSetByUser flag
+            uint8_t setByUser = configVal->m_bSetByUser ? 1 : 0;
+            writeData(client_fd, &setByUser, sizeof(setByUser));
         }
     } 
     else if (reqType == IPC::RequestType::SET_OPTION) {
@@ -106,6 +115,33 @@ void handleClient(int client_fd) {
             // g_pConfigManager->parseKeyword returns an error string on failure, empty on success
             std::string result = g_pConfigManager->parseKeyword(name, value);
             writeString(client_fd, result.empty() ? "OK" : result);
+        } else {
+            writeString(client_fd, "Invalid Name");
+        }
+    }
+    else if (reqType == IPC::RequestType::SET_OPTION_PERSIST) {
+        std::string name = readString(client_fd);
+        std::string value = readString(client_fd);
+
+        if (!name.empty()) {
+            // First, check if it was set by user (helps with decision-making on GUI side)
+            auto* configVal = g_pConfigManager->getHyprlangConfigValuePtr(name);
+            bool setByUser = configVal ? configVal->m_bSetByUser : false;
+            
+            // Write to config file
+            auto writeResult = ConfigWriter::updateConfigValue(name, value, setByUser);
+            
+            if (writeResult.success) {
+                // Apply the config change at runtime too
+                std::string parseResult = g_pConfigManager->parseKeyword(name, value);
+                if (parseResult.empty()) {
+                    writeString(client_fd, writeResult.wasExisting ? "OK:UPDATED" : "OK:ADDED");
+                } else {
+                    writeString(client_fd, "PARSE_ERROR:" + parseResult);
+                }
+            } else {
+                writeString(client_fd, "WRITE_ERROR:" + writeResult.error);
+            }
         } else {
             writeString(client_fd, "Invalid Name");
         }
