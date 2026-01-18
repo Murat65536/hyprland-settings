@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <map>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -19,15 +20,17 @@ public:
 protected:
     void on_button_refresh();
 
-    Gtk::Box m_VBox;
-    Gtk::ScrolledWindow m_ScrolledWindow;
-    Gtk::ColumnView m_ColumnView;
+    Gtk::Box m_MainVBox;
+    Gtk::Box m_HBox;
+    Gtk::StackSidebar m_StackSidebar;
+    Gtk::Stack m_Stack;
     Gtk::Button m_Button_Refresh;
 
     // Let's define the custom object for the model properly.
     class ConfigItem : public Glib::Object {
     public:
         std::string m_name;
+        std::string m_short_name;
         std::string m_value;
         std::string m_desc;
 
@@ -37,81 +40,123 @@ protected:
 
     protected:
         ConfigItem(const std::string& name, const std::string& value, const std::string& desc) 
-            : m_name(name), m_value(value), m_desc(desc) {}
+            : m_name(name), m_value(value), m_desc(desc) {
+            size_t pos = name.find(':');
+            if (pos != std::string::npos) {
+                m_short_name = name.substr(pos + 1);
+            } else {
+                m_short_name = name;
+            }
+        }
     };
 
-    Glib::RefPtr<Gio::ListStore<ConfigItem>> m_ListStore;
-    Glib::RefPtr<Gtk::SingleSelection> m_SelectionModel;
+    std::map<std::string, Glib::RefPtr<Gio::ListStore<ConfigItem>>> m_SectionStores;
 
     void setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
+    void setup_column_desc(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_desc(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
     void load_data();
     void send_update(const std::string& name, const std::string& value);
+    void create_section_view(const std::string& sectionName);
 };
 
 ConfigWindow::ConfigWindow()
-: m_VBox(Gtk::Orientation::VERTICAL),
+: m_MainVBox(Gtk::Orientation::VERTICAL),
+  m_HBox(Gtk::Orientation::HORIZONTAL),
   m_Button_Refresh("Refresh Options")
 {
     set_title("Hyprland Settings Viewer");
-    set_default_size(800, 600);
+    set_default_size(900, 600);
 
-    m_VBox.set_margin(10);
-    set_child(m_VBox);
+    m_MainVBox.set_margin(10);
+    set_child(m_MainVBox);
 
     // Refresh Button
     m_Button_Refresh.signal_clicked().connect(sigc::mem_fun(*this, &ConfigWindow::on_button_refresh));
-    m_VBox.append(m_Button_Refresh);
+    m_MainVBox.append(m_Button_Refresh);
 
-    // Scrolled Window
-    m_ScrolledWindow.set_expand(true);
-    m_VBox.append(m_ScrolledWindow);
+    // HBox for Sidebar + Stack
+    m_HBox.set_expand(true);
+    m_HBox.set_margin_top(10);
+    m_MainVBox.append(m_HBox);
 
-    // Create Model
-    m_ListStore = Gio::ListStore<ConfigItem>::create();
-    m_SelectionModel = Gtk::SingleSelection::create(m_ListStore);
-
-    // Create ColumnView
-    m_ColumnView.set_model(m_SelectionModel);
-    m_ColumnView.add_css_class("data-table");
+    // Sidebar
+    m_StackSidebar.set_stack(m_Stack);
+    m_StackSidebar.set_size_request(150, -1);
     
-    // Columns
-    auto factory_name = Gtk::SignalListItemFactory::create();
-    factory_name->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
-    factory_name->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_name));
-    auto col_name = Gtk::ColumnViewColumn::create("Option", factory_name);
-    col_name->set_expand(true);
-    m_ColumnView.append_column(col_name);
+    // Wrap sidebar in a scrolled window just in case
+    auto sidebarScroll = Gtk::make_managed<Gtk::ScrolledWindow>();
+    sidebarScroll->set_child(m_StackSidebar);
+    sidebarScroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    m_HBox.append(*sidebarScroll);
 
-    auto factory_value = Gtk::SignalListItemFactory::create();
-    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_edit));
-    factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_value));
-    auto col_val = Gtk::ColumnViewColumn::create("Value (Editable)", factory_value);
-    col_val->set_expand(true);
-    m_ColumnView.append_column(col_val);
-
-    auto factory_desc = Gtk::SignalListItemFactory::create();
-    factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
-    factory_desc->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_desc));
-    auto col_desc = Gtk::ColumnViewColumn::create("Description", factory_desc);
-    col_desc->set_expand(true);
-    m_ColumnView.append_column(col_desc);
-
-    m_ScrolledWindow.set_child(m_ColumnView);
+    // Stack
+    m_Stack.set_expand(true);
+    m_Stack.set_transition_type(Gtk::StackTransitionType::SLIDE_LEFT_RIGHT);
+    m_HBox.append(m_Stack);
 
     load_data();
 }
 
 ConfigWindow::~ConfigWindow() {}
 
+void ConfigWindow::create_section_view(const std::string& sectionName) {
+    auto listStore = Gio::ListStore<ConfigItem>::create();
+    m_SectionStores[sectionName] = listStore;
+
+    auto selectionModel = Gtk::SingleSelection::create(listStore);
+    auto columnView = Gtk::make_managed<Gtk::ColumnView>();
+    columnView->set_model(selectionModel);
+    columnView->add_css_class("data-table");
+
+    // Columns
+    auto factory_name = Gtk::SignalListItemFactory::create();
+    factory_name->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_read));
+    factory_name->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_name));
+    auto col_name = Gtk::ColumnViewColumn::create("Option", factory_name);
+    col_name->set_expand(true);
+    columnView->append_column(col_name);
+
+    auto factory_value = Gtk::SignalListItemFactory::create();
+    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_edit));
+    factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_value));
+    auto col_val = Gtk::ColumnViewColumn::create("Value (Editable)", factory_value);
+    col_val->set_expand(true);
+    columnView->append_column(col_val);
+
+    auto factory_desc = Gtk::SignalListItemFactory::create();
+    factory_desc->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_desc));
+    factory_desc->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_desc));
+    auto col_desc = Gtk::ColumnViewColumn::create("Description", factory_desc);
+    col_desc->set_expand(true);
+    columnView->append_column(col_desc);
+
+    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
+    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    scrolledWindow->set_child(*columnView);
+    
+    m_Stack.add(*scrolledWindow, sectionName, sectionName);
+}
+
 void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
     label->set_ellipsize(Pango::EllipsizeMode::END);
+    list_item->set_child(*label);
+}
+
+void ConfigWindow::setup_column_desc(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto label = Gtk::make_managed<Gtk::Label>();
+    label->set_halign(Gtk::Align::START);
+    label->set_wrap(true);
+    label->set_wrap_mode(Pango::WrapMode::WORD_CHAR);
+    label->set_ellipsize(Pango::EllipsizeMode::NONE);
+    label->set_xalign(0.0);
+    label->set_width_chars(10);
     list_item->set_child(*label);
 }
 
@@ -138,7 +183,7 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
 void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
     auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
-    if (item && label) label->set_text(item->m_name);
+    if (item && label) label->set_text(item->m_short_name);
 }
 
 void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -206,12 +251,17 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
 }
 
 void ConfigWindow::load_data() {
-    m_ListStore->remove_all();
+    // Clear existing stores
+    for (auto& kv : m_SectionStores) {
+        kv.second->remove_all();
+    }
 
     int sock = 0;
     struct sockaddr_un serv_addr;
     if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        m_ListStore->append(ConfigItem::create("Error", "Socket creation error", ""));
+        // Fallback if socket fails: show error in a "General" or "Error" tab?
+        // For simplicity, just return or print to stderr.
+        std::cerr << "Socket creation error" << std::endl;
         return;
     }
 
@@ -219,7 +269,8 @@ void ConfigWindow::load_data() {
     strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        m_ListStore->append(ConfigItem::create("Error", "Connection failed", "Ensure plugin is loaded"));
+        // Handle connection error
+        std::cerr << "Connection failed" << std::endl;
         ::close(sock);
         return;
     }
@@ -259,7 +310,19 @@ void ConfigWindow::load_data() {
             valStr = "Unknown Type";
         }
         
-        m_ListStore->append(ConfigItem::create(name, valStr, desc));
+        // Determine section
+        std::string section = "General";
+        size_t pos = name.find(':');
+        if (pos != std::string::npos) {
+            section = name.substr(0, pos);
+        }
+
+        // Create section if not exists
+        if (m_SectionStores.find(section) == m_SectionStores.end()) {
+            create_section_view(section);
+        }
+
+        m_SectionStores[section]->append(ConfigItem::create(name, valStr, desc));
     }
     ::close(sock);
 }
