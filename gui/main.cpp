@@ -306,7 +306,6 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
         return;
     }
 
-    // Use SET_OPTION_PERSIST to write to config file
     IPC::RequestType req = IPC::RequestType::SET_OPTION_PERSIST;
     write(sock, &req, sizeof(req));
     

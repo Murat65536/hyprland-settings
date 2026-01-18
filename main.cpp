@@ -104,19 +104,6 @@ void handleClient(int client_fd) {
             uint8_t setByUser = configVal->m_bSetByUser ? 1 : 0;
             writeData(client_fd, &setByUser, sizeof(setByUser));
         }
-    } 
-    else if (reqType == IPC::RequestType::SET_OPTION) {
-        std::string name = readString(client_fd);
-        std::string value = readString(client_fd);
-
-        if (!name.empty()) {
-            // Apply the config change
-            // g_pConfigManager->parseKeyword returns an error string on failure, empty on success
-            std::string result = g_pConfigManager->parseKeyword(name, value);
-            writeString(client_fd, result.empty() ? "OK" : result);
-        } else {
-            writeString(client_fd, "Invalid Name");
-        }
     }
     else if (reqType == IPC::RequestType::SET_OPTION_PERSIST) {
         std::string name = readString(client_fd);
