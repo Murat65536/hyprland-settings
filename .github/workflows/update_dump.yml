@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -33,8 +33,10 @@ jobs:
         timeout-minutes: 1
         env:
           WLR_BACKENDS: headless
-          WLR_RENDERER: pixman
           WLR_LIBINPUT_NO_DEVICES: 1
+          MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: 1
+          AQ_TRACE: 1
         run: |
           # Setup Environment for Headless Execution
           export HOME=/tmp
