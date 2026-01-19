@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -35,8 +35,15 @@ jobs:
           WLR_BACKENDS: headless
           WLR_RENDERER: pixman
           WLR_LIBINPUT_NO_DEVICES: 1
-          XDG_RUNTIME_DIR: /tmp
         run: |
+          # Setup Environment for Headless Execution
+          export HOME=/tmp
+          export XDG_RUNTIME_DIR=/tmp/runtime
+          export XDG_CACHE_HOME=/tmp/.cache
+          mkdir -p $XDG_RUNTIME_DIR
+          chmod 700 $XDG_RUNTIME_DIR
+          mkdir -p $XDG_CACHE_HOME
+
           # Create a minimal config that loads the plugin
           echo "plugin = $(pwd)/hyprland_settings_plugin.so" > hyprland.conf
           
@@ -50,6 +57,7 @@ jobs:
             cat hyprland_settings_dump.txt | head -n 10
           else
             echo "Error: Dump file was not generated."
+            ls -R /tmp/hypr || true
             ls -R
             exit 1
           fi
