@@ -51,6 +51,11 @@ jobs:
           export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
           export AQ_TRACE=1
+          # Start seatd for Aquamarine
+          export SEATD_SOCK=$XDG_RUNTIME_DIR/seatd.sock
+          seatd -s $SEATD_SOCK &
+          echo "seatd started on $SEATD_SOCK"
+          sleep 1
           
           # Create config
           echo "plugin = $MY_DIR/hyprland_settings_plugin.so" > hyprland.conf
