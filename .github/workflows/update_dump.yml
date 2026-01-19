@@ -20,10 +20,14 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
             hyprland \
-            xorg-xwayland \
-            kitty \
+            base-devel \
             git \
-            base-devel
+            mesa \
+            vulkan-swrast \
+            vulkan-tools \
+            libglvnd \
+            xorg-server-xvfb \
+            seatd
 
       - name: Checkout Repository
         uses: actions/checkout@v4
