@@ -23,6 +23,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Debug File Structure
+        run: |
+          echo "Current Directory: $(pwd)"
+          ls -R
+
       - name: Build Plugin
         run: |
           # Build using the headers provided by the arch package
