@@ -56,6 +56,7 @@ jobs:
           echo "plugin = $MY_DIR/hyprland_settings_plugin.so" > hyprland.conf
           
           echo "Starting Hyprland..."
+          export SEATD_VTBOUND=0
           timeout 10s seatd-launch -- Hyprland --i-am-really-stupid -c hyprland.conf || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
