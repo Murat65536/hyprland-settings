@@ -41,7 +41,8 @@ jobs:
           echo "plugin = $(pwd)/hyprland_settings_plugin.so" > hyprland.conf
           
           # Run Hyprland with a timeout
-          timeout 10s Hyprland -c hyprland.conf || true
+          # We use --i-am-really-stupid to allow running as root in the CI container
+          timeout 10s Hyprland --i-am-really-stupid -c hyprland.conf || true
           
           # Check if file exists
           if [ -f "hyprland_settings_dump.txt" ]; then
