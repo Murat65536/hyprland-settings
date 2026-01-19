@@ -869,7 +869,7 @@ void ConfigWindow::load_data() {
     m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
 
     // Read from dump file
-    std::ifstream inFile("../hyprland_settings_dump.txt");
+    std::ifstream inFile("../update/hyprland_settings_dump.txt");
     if (inFile.is_open()) {
         std::set<std::string> allSections;
         std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
