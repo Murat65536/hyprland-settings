@@ -18,69 +18,54 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm \
-            hyprland \
-            base-devel \
-            git \
-            mesa \
-            vulkan-swrast \
-            vulkan-tools \
-            libglvnd \
-            xorg-server-xvfb \
-            seatd
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd
 
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Build Plugin
         run: |
-          # Debug and Build
           echo "Hyprland CFLAGS: $(pkg-config --cflags hyprland)"
           g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 $(pkg-config --cflags hyprland) update/main.cpp -o hyprland_settings_plugin.so
 
       - name: Run Hyprland and Generate Dump
         timeout-minutes: 1
-        env:
-          WLR_BACKENDS: headless
-          WLR_LIBINPUT_NO_DEVICES: 1
-          MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
-          LIBGL_ALWAYS_SOFTWARE: 1
-          AQ_TRACE: 1
         run: |
-          # Setup Environment for Headless Execution
-          export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
-          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-          export LIBGL_ALWAYS_SOFTWARE=1
-          export GALLIUM_DRIVER=llvmpipe
+          # Define paths in the current directory
+          export MY_DIR=$(pwd)
+          export HOME=$MY_DIR/tmp_home
+          export XDG_RUNTIME_DIR=$MY_DIR/tmp_runtime
+          export XDG_CACHE_HOME=$MY_DIR/tmp_cache
+          
+          # Create them
+          mkdir -p $HOME
+          mkdir -p $XDG_RUNTIME_DIR
+          chmod 700 $XDG_RUNTIME_DIR
+          mkdir -p $XDG_CACHE_HOME
+          
+          echo "Directories created:"
+          ls -ld $HOME $XDG_RUNTIME_DIR $XDG_CACHE_HOME
+
+          # Environment for Headless
+          export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
-          export SEATD_SOCK=/run/seatd.sock
+          export AQ_TRACE=1
           
-          # Ensure directories exist with proper permissions
-          mkdir -p $XDG_RUNTIME_DIR/hypr
-          chmod -R 700 $XDG_RUNTIME_DIR
+          # Create config
+          echo "plugin = $MY_DIR/hyprland_settings_plugin.so" > hyprland.conf
           
-          # Try with DRM backend disabled, force software rendering
-          export AQ_DRM_DEVICES=
-          export AQ_NO_ATOMIC=1
-
-
-
-          # Create a minimal config that loads the plugin
-          echo "plugin = $(pwd)/hyprland_settings_plugin.so" > hyprland.conf
+          echo "Starting Hyprland..."
+          timeout 10s Hyprland --i-am-really-stupid -c hyprland.conf || true
           
-          # Run Hyprland with a timeout
-          # We use --i-am-really-stupid to allow running as root in the CI container
-          timeout 100s Hyprland --i-am-really-stupid -c hyprland.conf || true
-          
-          # Check if file exists
           if [ -f "hyprland_settings_dump.txt" ]; then
             echo "Dump file generated successfully."
             cat hyprland_settings_dump.txt | head -n 10
           else
             echo "Error: Dump file was not generated."
-            echo "=== CRASH REPORT ==="
-            find /tmp/.cache/hyprland -name "hyprlandCrashReport*.txt" -exec cat {} \+
-            echo "===================="
+            echo "=== CRASH REPORT (if any) ==="
+            find $XDG_CACHE_HOME -name "hyprlandCrashReport*.txt" -exec cat {} \+
+            echo "============================="
             exit 1
           fi
 
