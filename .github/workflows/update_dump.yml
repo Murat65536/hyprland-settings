@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -57,8 +57,9 @@ jobs:
             cat hyprland_settings_dump.txt | head -n 10
           else
             echo "Error: Dump file was not generated."
-            ls -R /tmp/hypr || true
-            ls -R
+            echo "=== CRASH REPORT ==="
+            find /tmp/.cache/hyprland -name "hyprlandCrashReport*.txt" -exec cat {} \+
+            echo "===================="
             exit 1
           fi
 
