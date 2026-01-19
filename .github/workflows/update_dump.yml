@@ -44,13 +44,11 @@ jobs:
           AQ_TRACE: 1
         run: |
           # Setup Environment for Headless Execution
-          export WLR_BACKENDS=headless
-          export WLR_RENDERER=pixman
-          export WLR_LIBINPUT_NO_DEVICES=1
+          export AQ_BACKEND=headless
+          export AQ_NO_MODIFIERS=1
           export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
           mkdir -p $XDG_RUNTIME_DIR
           chmod 700 $XDG_RUNTIME_DIR
-
 
           # Create a minimal config that loads the plugin
           echo "plugin = $(pwd)/hyprland_settings_plugin.so" > hyprland.conf
