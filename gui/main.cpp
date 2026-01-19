@@ -129,6 +129,8 @@ protected:
 
     std::map<std::string, Glib::RefPtr<Gio::ListStore<ConfigItem>>> m_SectionStores;
     Glib::RefPtr<Gio::ListStore<KeywordItem>> m_KeywordStore;
+    Glib::RefPtr<Gio::ListStore<KeywordItem>> m_ExecutingStore;
+    Glib::RefPtr<Gio::ListStore<KeywordItem>> m_EnvVarStore;
     Glib::RefPtr<Gio::ListStore<DeviceConfigItem>> m_DeviceConfigStore;
     std::vector<std::string> m_AvailableDevices;
     SectionNode m_RootSection;
@@ -173,6 +175,7 @@ protected:
     void create_section_view(const std::string& sectionPath);
     void create_executing_view();
     void create_device_configs_view();
+    void create_env_vars_view();
     void on_section_selected();
     void add_section_to_tree(const std::string& sectionPath);
     std::string get_section_path(const std::string& optionName);
@@ -242,6 +245,8 @@ ConfigWindow::ConfigWindow()
 
     // Create keyword store
     m_KeywordStore = Gio::ListStore<KeywordItem>::create();
+    m_ExecutingStore = Gio::ListStore<KeywordItem>::create();
+    m_EnvVarStore = Gio::ListStore<KeywordItem>::create();
     
     // Create device config store
     m_DeviceConfigStore = Gio::ListStore<DeviceConfigItem>::create();
@@ -322,8 +327,9 @@ void ConfigWindow::create_executing_view() {
     addFrame->set_child(*addBox);
     mainBox->append(*addFrame);
 
-    // Keywords list
-    auto selectionModel = Gtk::SingleSelection::create(m_KeywordStore);
+    // List for executing commands
+    auto selectionModel = Gtk::SingleSelection::create(m_ExecutingStore);
+    
     auto columnView = Gtk::make_managed<Gtk::ColumnView>();
     columnView->set_model(selectionModel);
     columnView->add_css_class("data-table");
@@ -359,6 +365,93 @@ void ConfigWindow::create_executing_view() {
     mainBox->append(*scrolledWindow);
 
     m_Stack.add(*mainBox, "__executing__", "Executing");
+}
+
+void ConfigWindow::create_env_vars_view() {
+    auto mainBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+    mainBox->set_spacing(10);
+    mainBox->set_margin(10);
+
+    // Add new environment variable section
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Environment Variable");
+    auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
+    addBox->set_spacing(5);
+    addBox->set_margin(10);
+
+    auto typeCombo = Gtk::make_managed<Gtk::DropDown>();
+    auto typeModel = Gtk::StringList::create({"env", "envd"});
+    typeCombo->set_model(typeModel);
+    typeCombo->set_selected(0);
+
+    auto nameEntry = Gtk::make_managed<Gtk::Entry>();
+    nameEntry->set_placeholder_text("Name...");
+    nameEntry->set_width_chars(20);
+
+    auto valueEntry = Gtk::make_managed<Gtk::Entry>();
+    valueEntry->set_placeholder_text("Value...");
+    valueEntry->set_hexpand(true);
+
+    auto addButton = Gtk::make_managed<Gtk::Button>("Add");
+    addButton->signal_clicked().connect([this, typeCombo, typeModel, nameEntry, valueEntry]() {
+        auto selected = typeCombo->get_selected();
+        if (selected != GTK_INVALID_LIST_POSITION) {
+            auto typeStr = typeModel->get_string(selected);
+            std::string name = nameEntry->get_text();
+            std::string value = valueEntry->get_text();
+            if (!name.empty()) {
+                send_keyword_add(typeStr, name + "," + value);
+                nameEntry->set_text("");
+                valueEntry->set_text("");
+                load_keywords();
+            }
+        }
+    });
+
+    addBox->append(*typeCombo);
+    addBox->append(*nameEntry);
+    addBox->append(*valueEntry);
+    addBox->append(*addButton);
+    addFrame->set_child(*addBox);
+    mainBox->append(*addFrame);
+
+    // List for environment variables
+    auto selectionModel = Gtk::SingleSelection::create(m_EnvVarStore);
+    
+    auto columnView = Gtk::make_managed<Gtk::ColumnView>();
+    columnView->set_model(selectionModel);
+    columnView->add_css_class("data-table");
+
+    // Type column
+    auto factory_type = Gtk::SignalListItemFactory::create();
+    factory_type->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_type));
+    factory_type->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_type));
+    auto col_type = Gtk::ColumnViewColumn::create("Type", factory_type);
+    col_type->set_fixed_width(80);
+    columnView->append_column(col_type);
+
+    // Value column (Name,Value)
+    auto factory_value = Gtk::SignalListItemFactory::create();
+    factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_value));
+    factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_value));
+    auto col_value = Gtk::ColumnViewColumn::create("Variable (Name,Value)", factory_value);
+    col_value->set_expand(true);
+    columnView->append_column(col_value);
+
+    // Actions column
+    auto factory_actions = Gtk::SignalListItemFactory::create();
+    factory_actions->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_actions));
+    factory_actions->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_actions));
+    auto col_actions = Gtk::ColumnViewColumn::create("Actions", factory_actions);
+    col_actions->set_fixed_width(80);
+    columnView->append_column(col_actions);
+
+    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
+    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    scrolledWindow->set_child(*columnView);
+    scrolledWindow->set_vexpand(true);
+    mainBox->append(*scrolledWindow);
+
+    m_Stack.add(*mainBox, "__env_vars__", "Environment Variables");
 }
 
 void ConfigWindow::create_device_configs_view() {
@@ -957,6 +1050,8 @@ void ConfigWindow::send_device_config_remove(const std::string& filePath, int li
 
 void ConfigWindow::load_keywords() {
     m_KeywordStore->remove_all();
+    m_ExecutingStore->remove_all();
+    m_EnvVarStore->remove_all();
 
     int sock = 0;
     struct sockaddr_un serv_addr;
@@ -987,7 +1082,14 @@ void ConfigWindow::load_keywords() {
         int32_t lineNumber;
         readData(sock, &lineNumber, sizeof(lineNumber));
 
-        m_KeywordStore->append(KeywordItem::create(type, value, filePath, lineNumber));
+        auto item = KeywordItem::create(type, value, filePath, lineNumber);
+        m_KeywordStore->append(item);
+        
+        if (type.find("exec") == 0) {
+            m_ExecutingStore->append(item);
+        } else if (type == "env" || type == "envd") {
+            m_EnvVarStore->append(item);
+        }
     }
     ::close(sock);
 }
@@ -1192,10 +1294,17 @@ void ConfigWindow::load_data() {
     (*deviceConfigsIter)[m_SectionColumns.m_col_name] = "Per-device Input Configs";
     (*deviceConfigsIter)[m_SectionColumns.m_col_full_path] = "__device_configs__";
     m_SectionIters["__device_configs__"] = deviceConfigsIter;
+
+    // Add "Environment Variables" subsection under Keywords
+    auto envVarsIter = m_SectionTreeStore->append(keywordsIter->children());
+    (*envVarsIter)[m_SectionColumns.m_col_name] = "Environment Variables";
+    (*envVarsIter)[m_SectionColumns.m_col_full_path] = "__env_vars__";
+    m_SectionIters["__env_vars__"] = envVarsIter;
     
     // Create and populate views
     create_executing_view();
     create_device_configs_view();
+    create_env_vars_view();
     load_keywords();
     load_device_configs();
     
