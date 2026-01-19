@@ -1,0 +1,1860 @@
+BEGIN_ENTRY
+NAME: general:border_size
+DESC: size of the border around windows
+VALUE: 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:gaps_in
+DESC: gaps between windows  supports css style gaps (top, right, bottom, left -> 5 10 15 20)
+VALUE: 2 2 2 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:gaps_out
+DESC: gaps between windows and monitor edges  supports css style gaps (top, right, bottom, left -> 5 10 15 20)
+VALUE: 4 4 4 4
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:float_gaps
+DESC: gaps between windows and monitor edges for floating windows  supports css style gaps (top, right, bottom, left -> 5 10 15 20).  -1 means default gaps_in/gaps_out 0 means no gaps
+VALUE: 0 0 0 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:gaps_workspaces
+DESC: gaps between workspaces. Stacks with gaps_out.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:col.inactive_border
+DESC: border color for inactive windows
+VALUE: ff414243 0deg
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:col.active_border
+DESC: border color for the active window
+VALUE: ff5a5856 0deg
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:col.nogroup_border
+DESC: inactive border color for window that cannot be added to a group (see denywindowfromgroup dispatcher)
+VALUE: ffffaaff 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:col.nogroup_border_active
+DESC: active border color for window that cannot be added to a group
+VALUE: ffff00ff 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:layout
+DESC: which layout to use. [dwindle/master]
+VALUE: dwindle
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:no_focus_fallback
+DESC: if true, will not fall back to the next available window when moving focus in a direction where no window was found
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:resize_on_border
+DESC: enables resizing windows by clicking and dragging on borders and gaps
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:extend_border_grab_area
+DESC: extends the area around the border where you can click and drag on, only used when general:resize_on_border is on.
+VALUE: 15
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:hover_icon_on_border
+DESC: show a cursor icon when hovering over borders, only used when general:resize_on_border is on.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:allow_tearing
+DESC: master switch for allowing tearing to occur. See the Tearing page.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:resize_corner
+DESC: force floating windows to use a specific corner when being resized (1-4 going clockwise from top left, 0 to disable)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:snap:enabled
+DESC: enable snapping for floating windows
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:snap:window_gap
+DESC: minimum gap in pixels between windows before snapping
+VALUE: 10
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:snap:monitor_gap
+DESC: minimum gap in pixels between window and monitor edges before snapping
+VALUE: 10
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:snap:border_overlap
+DESC: if true, windows snap such that only one border's worth of space is between them
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:snap:respect_gaps
+DESC: if true, snapping will respect gaps between windows
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:modal_parent_blocking
+DESC: if true, parent windows of modals will not be interactive.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: general:locale
+DESC: overrides the system locale
+VALUE: 
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:rounding
+DESC: rounded corners' radius (in layout px)
+VALUE: 10
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:rounding_power
+DESC: rounding power of corners (2 is a circle)
+VALUE: 2.000000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:active_opacity
+DESC: opacity of active windows. [0.0 - 1.0]
+VALUE: 1.000000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:inactive_opacity
+DESC: opacity of inactive windows. [0.0 - 1.0]
+VALUE: 0.900000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:fullscreen_opacity
+DESC: opacity of fullscreen windows. [0.0 - 1.0]
+VALUE: 1.000000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:enabled
+DESC: enable drop shadows on windows
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:range
+DESC: Shadow range (size) in layout px
+VALUE: 3
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:render_power
+DESC: in what power to render the falloff (more power, the faster the falloff) [1 - 4]
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:sharp
+DESC: whether the shadow should be sharp or not. Akin to an infinitely high render power.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:ignore_window
+DESC: if true, the shadow will not be rendered behind the window itself, only around it.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:color
+DESC: shadow's color. Alpha dictates shadow's opacity.
+VALUE: 4284110934
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:color_inactive
+DESC: inactive shadow color. (if not set, will fall back to col.shadow)
+VALUE: 4282466883
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:offset
+DESC: shadow's rendering offset.
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:shadow:scale
+DESC: shadow's scale. [0.0 - 1.0]
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:dim_modal
+DESC: enables dimming of parents of modal windows
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:dim_inactive
+DESC: enables dimming of inactive windows
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:dim_strength
+DESC: how much inactive windows should be dimmed [0.0 - 1.0]
+VALUE: 0.100000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:dim_special
+DESC: how much to dim the rest of the screen by when a special workspace is open. [0.0 - 1.0]
+VALUE: 0.800000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:dim_around
+DESC: how much the dimaround window rule should dim by. [0.0 - 1.0]
+VALUE: 0.400000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:screen_shader
+DESC: screen_shader a path to a custom shader to be applied at the end of rendering. See examples/screenShader.frag for an example.
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:border_part_of_window
+DESC: whether the border should be treated as a part of the window.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:enabled
+DESC: enable kawase window background blur
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:size
+DESC: blur size (distance)
+VALUE: 6
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:passes
+DESC: the amount of passes to perform
+VALUE: 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:ignore_opacity
+DESC: make the blur layer ignore the opacity of the window
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:new_optimizations
+DESC: whether to enable further optimizations to the blur. Recommended to leave on, as it will massively improve performance.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:xray
+DESC: if enabled, floating windows will ignore tiled windows in their blur. Only available if blur_new_optimizations is true. Will reduce overhead on floating blur significantly.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:noise
+DESC: how much noise to apply. [0.0 - 1.0]
+VALUE: 0.011700
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:contrast
+DESC: contrast modulation for blur. [0.0 - 2.0]
+VALUE: 0.891600
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:brightness
+DESC: brightness modulation for blur. [0.0 - 2.0]
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:vibrancy
+DESC: Increase saturation of blurred colors. [0.0 - 1.0]
+VALUE: 0.169600
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:vibrancy_darkness
+DESC: How strong the effect of vibrancy is on dark areas . [0.0 - 1.0]
+VALUE: 0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:special
+DESC: whether to blur behind the special workspace (note: expensive)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:popups
+DESC: whether to blur popups (e.g. right-click menus)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:popups_ignorealpha
+DESC: works like ignorealpha in layer rules. If pixel opacity is below set value, will not blur. [0.0 - 1.0]
+VALUE: 0.200000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:input_methods
+DESC: whether to blur input methods (e.g. fcitx5)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: decoration:blur:input_methods_ignorealpha
+DESC: works like ignorealpha in layer rules. If pixel opacity is below set value, will not blur. [0.0 - 1.0]
+VALUE: 0.200000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: animations:enabled
+DESC: enable animations
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: animations:workspace_wraparound
+DESC: changes the direction of slide animations between the first and last workspaces
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_model
+DESC: Appropriate XKB keymap parameter. See the note below.
+VALUE: 
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_layout
+DESC: Appropriate XKB keymap parameter
+VALUE: us
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_variant
+DESC: Appropriate XKB keymap parameter
+VALUE: 
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_options
+DESC: Appropriate XKB keymap parameter
+VALUE: 
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_rules
+DESC: Appropriate XKB keymap parameter
+VALUE: 
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:kb_file
+DESC: Appropriate XKB keymap file
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:numlock_by_default
+DESC: Engage numlock by default.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:resolve_binds_by_sym
+DESC: Determines how keybinds act when multiple layouts are used. If false, keybinds will always act as if the first specified layout is active. If true, keybinds specified by symbols are activated when you type the respective symbol with the current layout.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:repeat_rate
+DESC: The repeat rate for held-down keys, in repeats per second.
+VALUE: 50
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:repeat_delay
+DESC: Delay before a held-down key is repeated, in milliseconds.
+VALUE: 300
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:sensitivity
+DESC: Sets the mouse input sensitivity. Value is clamped to the range -1.0 to 1.0.
+VALUE: 0.000000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:accel_profile
+DESC: Sets the cursor acceleration profile. Can be one of adaptive, flat. Can also be custom, see below. Leave empty to use libinput's default mode for your input device. [adaptive/flat/custom]
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:force_no_accel
+DESC: Force no cursor acceleration. This bypasses most of your pointer settings to get as raw of a signal as possible. Enabling this is not recommended due to potential cursor desynchronization.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:rotation
+DESC: Sets the rotation of a device in degrees clockwise off the logical neutral position. Value is clamped to the range 0 to 359.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:left_handed
+DESC: Switches RMB and LMB
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:scroll_points
+DESC: Sets the scroll acceleration profile, when accel_profile is set to custom. Has to be in the form <step> <points>. Leave empty to have a flat scroll curve.
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:scroll_method
+DESC: Sets the scroll method. Can be one of 2fg (2 fingers), edge, on_button_down, no_scroll. [2fg/edge/on_button_down/no_scroll]
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:scroll_button
+DESC: Sets the scroll button. Has to be an int, cannot be a string. Check wev if you have any doubts regarding the ID. 0 means default.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:scroll_button_lock
+DESC: If the scroll button lock is enabled, the button does not need to be held down. Pressing and releasing the button toggles the button lock, which logically holds the button down or releases it. While the button is logically held down, motion events are converted to scroll events.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:scroll_factor
+DESC: Multiplier added to scroll movement for external mice. Note that there is a separate setting for touchpad scroll_factor.
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:natural_scroll
+DESC: Inverts scrolling direction. When enabled, scrolling moves content directly, rather than manipulating a scrollbar.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:follow_mouse
+DESC: Specify if and how cursor movement should affect window focus. See the note below. [0/1/2/3]
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:follow_mouse_threshold
+DESC: The smallest distance in logical pixels the mouse needs to travel for the window under it to get focused. Works only with follow_mouse = 1.
+VALUE: 0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:focus_on_close
+DESC: Controls the window focus behavior when a window is closed. When set to 0, focus will shift to the next window candidate. When set to 1, focus will shift to the window under the cursor.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:mouse_refocus
+DESC: if disabled, mouse focus won't switch to the hovered window unless the mouse crosses a window boundary when follow_mouse=1.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:float_switch_override_focus
+DESC: If enabled (1 or 2), focus will change to the window under the cursor when changing from tiled-to-floating and vice versa. If 2, focus will also follow mouse on float-to-float switches.
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:special_fallthrough
+DESC: if enabled, having only floating windows in the special workspace will not block focusing windows in the regular workspace.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:off_window_axis_events
+DESC: Handles axis events around (gaps/border for tiled, dragarea/border for floated) a focused window. 0 ignores axis events 1 sends out-of-bound coordinates 2 fakes pointer coordinates to the closest point inside the window 3 warps the cursor to the closest point inside the window
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:emulate_discrete_scroll
+DESC: Emulates discrete scrolling from high resolution scrolling events. 0 disables it, 1 enables handling of non-standard events only, and 2 force enables all scroll wheel events to be handled
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:disable_while_typing
+DESC: Disable the touchpad while typing.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:natural_scroll
+DESC: Inverts scrolling direction. When enabled, scrolling moves content directly, rather than manipulating a scrollbar.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:scroll_factor
+DESC: Multiplier applied to the amount of scroll movement.
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:middle_button_emulation
+DESC: Sending LMB and RMB simultaneously will be interpreted as a middle click. This disables any touchpad area that would normally send a middle click based on location.
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:tap_button_map
+DESC: Sets the tap button mapping for touchpad button emulation. Can be one of lrm (default) or lmr (Left, Middle, Right Buttons). [lrm/lmr]
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:clickfinger_behavior
+DESC: Button presses with 1, 2, or 3 fingers will be mapped to LMB, RMB, and MMB respectively. This disables interpretation of clicks based on location on the touchpad.
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:tap-to-click
+DESC: Tapping on the touchpad with 1, 2, or 3 fingers will send LMB, RMB, and MMB respectively.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:drag_lock
+DESC: When enabled, lifting the finger off while dragging will not drop the dragged item. 0 -> disabled, 1 -> enabled with timeout, 2 -> enabled sticky.dragging will not drop the dragged item.
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:tap-and-drag
+DESC: Sets the tap and drag mode for the touchpad
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:flip_x
+DESC: Inverts the horizontal movement of the touchpad
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:flip_y
+DESC: Inverts the vertical movement of the touchpad
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchpad:drag_3fg
+DESC: Three Finger Drag 0 -> disabled, 1 -> 3 finger, 2 -> 4 finger
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchdevice:transform
+DESC: Transform the input from touchdevices. The possible transformations are the same as those of the monitors
+VALUE: -1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchdevice:output
+DESC: The monitor to bind touch devices. The default is auto-detection. To stop auto-detection, use an empty string or the [[Empty]] value.
+VALUE: [[Auto]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:touchdevice:enabled
+DESC: Whether input is enabled for touch devices.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:virtualkeyboard:share_states
+DESC: Unify key down states and modifier states with other keyboards. 0 -> no, 1 -> yes, 2 -> yes unless IME client
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:virtualkeyboard:release_pressed_on_close
+DESC: Release all pressed keys by virtual keyboard on close.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:transform
+DESC: transform the input from tablets. The possible transformations are the same as those of the monitors
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:output
+DESC: the monitor to bind tablets. Can be current or a monitor name. Leave empty to map across all monitors.
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:region_position
+DESC: position of the mapped region in monitor layout relative to the top left corner of the bound monitor or all monitors.
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:absolute_region_position
+DESC: whether to treat the region_position as an absolute position in monitor layout. Only applies when output is empty.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:region_size
+DESC: size of the mapped region. When this variable is set, tablet input will be mapped to the region. [0, 0] or invalid size means unset.
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:relative_input
+DESC: whether the input should be relative
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:left_handed
+DESC: if enabled, the tablet will be rotated 180 degrees
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:active_area_size
+DESC: size of tablet's active area in mm
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: input:tablet:active_area_position
+DESC: position of the active area in mm
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_distance
+DESC: in px, the distance of the touchpad gesture
+VALUE: 500
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_touch
+DESC: enable workspace swiping from the edge of a touchscreen
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_invert
+DESC: invert the direction (touchpad only)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_touch_invert
+DESC: invert the direction (touchscreen only)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_min_speed_to_force
+DESC: minimum speed in px per timepoint to force the change ignoring cancel_ratio. Setting to 0 will disable this mechanic.
+VALUE: 30
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_cancel_ratio
+DESC: how much the swipe has to proceed in order to commence it. (0.7 -> if > 0.7 * distance, switch, if less, revert) [0.0 - 1.0]
+VALUE: 0.500000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_create_new
+DESC: whether a swipe right on the last workspace should create a new one.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_direction_lock
+DESC: if enabled, switching direction will be locked when you swipe past the direction_lock_threshold (touchpad only).
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_direction_lock_threshold
+DESC: in px, the distance to swipe before direction lock activates (touchpad only).
+VALUE: 10
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_forever
+DESC: if enabled, swiping will not clamp at the neighboring workspaces but continue to the further ones.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:workspace_swipe_use_r
+DESC: if enabled, swiping will use the r prefix instead of the m prefix for finding workspaces.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: gestures:close_max_timeout
+DESC: Timeout for closing windows with the close gesture, in ms.
+VALUE: 1000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:insert_after_current
+DESC: whether new windows in a group spawn after current or at group tail
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:focus_removed_window
+DESC: whether Hyprland should focus on the window that has just been moved out of the group
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:merge_groups_on_drag
+DESC: whether window groups can be dragged into other groups
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:merge_groups_on_groupbar
+DESC: whether one group will be merged with another when dragged into its groupbar
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:col.border_active
+DESC: border color for inactive windows
+VALUE: ffc1bbb6 0deg
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:col.border_inactive
+DESC: border color for the active window
+VALUE: 66777700 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:col.border_locked_inactive
+DESC: inactive border color for window that cannot be added to a group (see denywindowfromgroup dispatcher)
+VALUE: 66775500 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:col.border_locked_active
+DESC: active border color for window that cannot be added to a group
+VALUE: 66ff5500 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:auto_group
+DESC: automatically group new windows
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:drag_into_group
+DESC: whether dragging a window into a unlocked group will merge them. Options: 0 (disabled), 1 (enabled), 2 (only when dragging into the groupbar)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:merge_floated_into_tiled_on_groupbar
+DESC: whether dragging a floating window into a tiled window groupbar will merge them
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:group_on_movetoworkspace
+DESC: whether using movetoworkspace[silent] will merge the window into the workspace's solitary unlocked group
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:enabled
+DESC: enables groupbars
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:font_family
+DESC: font used to display groupbar titles, use misc:font_family if not specified
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:font_weight_active
+DESC: weight of the font used to display active groupbar titles
+VALUE: 400
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:font_weight_inactive
+DESC: weight of the font used to display inactive groupbar titles
+VALUE: 400
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:font_size
+DESC: font size of groupbar title
+VALUE: 8
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gradients
+DESC: enables gradients
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:height
+DESC: height of the groupbar
+VALUE: 14
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:indicator_gap
+DESC: height of the gap between the groupbar indicator and title
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:indicator_height
+DESC: height of the groupbar indicator
+VALUE: 3
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:stacked
+DESC: render the groupbar as a vertical stack
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:priority
+DESC: sets the decoration priority for groupbars
+VALUE: 3
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:render_titles
+DESC: whether to render titles in the group bar decoration
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:scrolling
+DESC: whether scrolling in the groupbar changes group active window
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:rounding
+DESC: how much to round the groupbar
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:rounding_power
+DESC: rounding power of groupbar corners (2 is a circle)
+VALUE: 2.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gradient_rounding
+DESC: how much to round the groupbar gradient
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gradient_rounding_power
+DESC: rounding power of groupbar gradient corners (2 is a circle)
+VALUE: 2.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:round_only_edges
+DESC: if yes, will only round at the groupbar edges
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gradient_round_only_edges
+DESC: if yes, will only round at the groupbar gradient edges
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:text_color
+DESC: color for window titles in the groupbar
+VALUE: 4294967295
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:text_color_inactive
+DESC: color for inactive windows' titles in the groupbar (if unset, defaults to text_color)
+VALUE: -1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:text_color_locked_active
+DESC: color for the active window's title in a locked group (if unset, defaults to text_color)
+VALUE: -1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:text_color_locked_inactive
+DESC: color for inactive windows' titles in locked groups (if unset, defaults to text_color_inactive)
+VALUE: -1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:col.active
+DESC: active group border color
+VALUE: ff000000 0deg
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:col.inactive
+DESC: inactive (out of focus) group border color
+VALUE: 66777700 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:col.locked_active
+DESC: active locked group border color
+VALUE: 66ff5500 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:col.locked_inactive
+DESC: controls the group bar text color
+VALUE: 66775500 0deg
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gaps_out
+DESC: gap between gradients and window
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:gaps_in
+DESC: gap between gradients
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:keep_upper_gap
+DESC: keep an upper gap above gradient
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:text_offset
+DESC: set an offset for a text
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: group:groupbar:blur
+DESC: enable background blur for groupbars
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_hyprland_logo
+DESC: disables the random Hyprland logo / anime girl background. :(
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_splash_rendering
+DESC: disables the Hyprland splash rendering. (requires a monitor reload to take effect)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:col.splash
+DESC: Changes the color of the splash text (requires a monitor reload to take effect).
+VALUE: 1442840575
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:font_family
+DESC: Set the global default font to render the text including debug fps/notification, config error messages and etc., selected from system fonts.
+VALUE: Sans
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:splash_font_family
+DESC: Changes the font used to render the splash text, selected from system fonts (requires a monitor reload to take effect).
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:force_default_wallpaper
+DESC: Enforce any of the 3 default wallpapers. Setting this to 0 or 1 disables the anime background. -1 means “random”. [-1/0/1/2]
+VALUE: -1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:vfr
+DESC: controls the VFR status of Hyprland. Heavily recommended to leave enabled to conserve resources.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:vrr
+DESC: 	controls the VRR (Adaptive Sync) of your monitors. 0 - off, 1 - on, 2 - fullscreen only, 3 - fullscreen with game or video content type [0/1/2/3]
+VALUE: 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:mouse_move_enables_dpms
+DESC: If DPMS is set to off, wake up the monitors if the mouse move
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:key_press_enables_dpms
+DESC: If DPMS is set to off, wake up the monitors if a key is pressed.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:name_vk_after_proc
+DESC: Name virtual keyboards after the processes that create them. E.g. /usr/bin/fcitx5 will have hl-virtual-keyboard-fcitx5.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:always_follow_on_dnd
+DESC: Will make mouse focus follow the mouse when drag and dropping. Recommended to leave it enabled, especially for people using focus follows mouse at 0.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:layers_hog_keyboard_focus
+DESC: If true, will make keyboard-interactive layers keep their focus on mouse move (e.g. wofi, bemenu)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:animate_manual_resizes
+DESC: If true, will animate manual window resizes/moves
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:animate_mouse_windowdragging
+DESC: If true, will animate windows being dragged by mouse, note that this can cause weird behavior on some curves
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_autoreload
+DESC: If true, the config will not reload automatically on save, and instead needs to be reloaded with hyprctl reload. Might save on battery.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:enable_swallow
+DESC: Enable window swallowing
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:swallow_regex
+DESC: The class regex to be used for windows that should be swallowed (usually, a terminal). To know more about the list of regex which can be used use this cheatsheet.
+VALUE: ^(kitty)$
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:swallow_exception_regex
+DESC: The title regex to be used for windows that should not be swallowed by the windows specified in swallow_regex (e.g. wev). The regex is matched against the parent (e.g. Kitty) window’s title on the assumption that it changes to whatever process it’s running.
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:focus_on_activate
+DESC: Whether Hyprland should focus an app that requests to be focused (an activate request)
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:mouse_move_focuses_monitor
+DESC: Whether mouse moving into a different monitor should focus it
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:allow_session_lock_restore
+DESC: if true, will allow you to restart a lockscreen app in case it crashes (red screen of death)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:session_lock_xray
+DESC: keep rendering workspaces below your lockscreen
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:background_color
+DESC: change the background color. (requires enabled disable_hyprland_logo)
+VALUE: 4279308561
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:close_special_on_empty
+DESC: close the special workspace if the last window is removed
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:on_focus_under_fullscreen
+DESC: if there is a fullscreen or maximized window, decide whether a tiled window requested to focus should replace it, stay behind or disable the fullscreen/maximized state. 0 - ignore focus request (keep focus on fullscreen window), 1 - takes over, 2 - unfullscreen/unmaximize [0/1/2]
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:exit_window_retains_fullscreen
+DESC: if true, closing a fullscreen window makes the next focused window fullscreen
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:initial_workspace_tracking
+DESC: if enabled, windows will open on the workspace they were invoked on. 0 - disabled, 1 - single-shot, 2 - persistent (all children too)
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:middle_click_paste
+DESC: whether to enable middle-click-paste (aka primary selection)
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:render_unfocused_fps
+DESC: the maximum limit for renderunfocused windows' fps in the background
+VALUE: 15
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_xdg_env_checks
+DESC: disable the warning if XDG environment is externally managed
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_hyprland_guiutils_check
+DESC: disable the warning if hyprland-guiutils is missing
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_watchdog_warning
+DESC: whether to disable the warning about not using start-hyprland.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:lockdead_screen_delay
+DESC: the delay in ms after the lockdead screen appears if the lock screen did not appear after a lock event occurred.
+VALUE: 1000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:enable_anr_dialog
+DESC: whether to enable the ANR (app not responding) dialog when your apps hang
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:anr_missed_pings
+DESC: number of missed pings before showing the ANR dialog
+VALUE: 15
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:screencopy_force_8b
+DESC: forces 8 bit screencopy (fixes apps that don't understand 10bit)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:disable_scale_notification
+DESC: disables notification popup when a monitor fails to set a suitable scale and falls back to suggested
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: misc:size_limits_tiled
+DESC: whether to apply minsize and maxsize rules to tiled windows
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:pass_mouse_when_bound
+DESC: if disabled, will not pass the mouse events to apps / dragging windows around if a keybind has been triggered.
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:scroll_event_delay
+DESC: in ms, how many ms to wait after a scroll event to allow passing another one for the binds.
+VALUE: 300
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:workspace_back_and_forth
+DESC: If enabled, an attempt to switch to the currently focused workspace will instead switch to the previous workspace. Akin to i3’s auto_back_and_forth.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:hide_special_on_workspace_change
+DESC: If enabled, changing the active workspace (including to itself) will hide the special workspace on the monitor where the newly active workspace resides.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:allow_workspace_cycles
+DESC: If enabled, workspaces don’t forget their previous workspace, so cycles can be created by switching to the first workspace in a sequence, then endlessly going to the previous workspace.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:workspace_center_on
+DESC: Whether switching workspaces should center the cursor on the workspace (0) or on the last active window for that workspace (1)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:focus_preferred_method
+DESC: sets the preferred focus finding method when using focuswindow/movewindow/etc with a direction. 0 - history (recent have priority), 1 - length (longer shared edges have priority)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:ignore_group_lock
+DESC: If enabled, dispatchers like moveintogroup, moveoutofgroup and movewindoworgroup will ignore lock per group.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:movefocus_cycles_fullscreen
+DESC: If enabled, when on a fullscreen window, movefocus will cycle fullscreen, if not, it will move the focus in a direction.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:movefocus_cycles_groupfirst
+DESC: If enabled, when in a grouped window, movefocus will cycle windows in the groups first, then at each ends of tabs, it'll move on to other windows/groups
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:disable_keybind_grabbing
+DESC: If enabled, apps that request keybinds to be disabled (e.g. VMs) will not be able to do so.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:window_direction_monitor_fallback
+DESC: If enabled, moving a window or focus over the edge of a monitor with a direction will move it to the next monitor in that direction.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:allow_pin_fullscreen
+DESC: Allows fullscreen to pinned windows, and restore their pinned status afterwards
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: binds:drag_threshold
+DESC: Movement threshold in pixels for window dragging and c/g bind flags. 0 to disable and grab on mousedown.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: xwayland:enabled
+DESC: allow running applications using X11
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: xwayland:use_nearest_neighbor
+DESC: uses the nearest neighbor filtering for xwayland apps, making them pixelated rather than blurry
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: xwayland:force_zero_scaling
+DESC: forces a scale of 1 on xwayland windows on scaled displays.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: xwayland:create_abstract_socket
+DESC: Create the abstract Unix domain socket for XWayland
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: opengl:nvidia_anti_flicker
+DESC: reduces flickering on nvidia at the cost of possible frame drops on lower-end GPUs. On non-nvidia, this is ignored.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:direct_scanout
+DESC: Enables direct scanout. Direct scanout attempts to reduce lag when there is only one fullscreen application on a screen (e.g. game). It is also recommended to set this to false if the fullscreen application shows graphical glitches. 0 - off, 1 - on, 2 - auto (on with content type 'game')
+VALUE: 0
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:expand_undersized_textures
+DESC: Whether to expand textures that have not yet resized to be larger, or to just stretch them instead.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:xp_mode
+DESC: Disable back buffer and bottom layer rendering.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:ctm_animation
+DESC: Whether to enable a fade animation for CTM changes (hyprsunset). 2 means 'auto' (Yes on everything but Nvidia).
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:cm_fs_passthrough
+DESC: Passthrough color settings for fullscreen apps when possible
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:cm_enabled
+DESC: Enable Color Management pipelines (requires restart to fully take effect)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:send_content_type
+DESC: Report content type to allow monitor profile autoswitch (may result in a black screen during the switch)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:cm_auto_hdr
+DESC: Auto-switch to hdr mode when fullscreen app is in hdr, 0 - off, 1 - hdr, 2 - hdredid (cm_fs_passthrough can switch to hdr even when this setting is off)
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:new_render_scheduling
+DESC: enable new render scheduling, which should improve FPS on underpowered devices. This does not add latency when your PC can keep up.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:non_shader_cm
+DESC: Enable CM without shader. 0 - disable, 1 - whenever possible, 2 - DS and passthrough only, 3 - disable and ignore CM issues
+VALUE: 3
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: render:cm_sdr_eotf
+DESC: Default transfer function for displaying SDR apps. 0 - Use default value (Gamma 2.2), 1 - Treat unspecified as Gamma 2.2, 2 - Treat unspecified and sRGB as Gamma 2.2, 3 - Treat unspecified as sRGB
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:invisible
+DESC: don't render cursors
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:no_hardware_cursors
+DESC: disables hardware cursors. Auto = disable when multi-gpu on nvidia
+VALUE: 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:no_break_fs_vrr
+DESC: disables scheduling new frames on cursor movement for fullscreen apps with VRR enabled to avoid framerate spikes (may require no_hardware_cursors = true) 0 - off, 1 - on, 2 - auto (on with content type 'game')
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:min_refresh_rate
+DESC: minimum refresh rate for cursor movement when no_break_fs_vrr is active. Set to minimum supported refresh rate or higher
+VALUE: 24
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:hotspot_padding
+DESC: the padding, in logical px, between screen edges and the cursor
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:inactive_timeout
+DESC: in seconds, after how many seconds of cursor’s inactivity to hide it. Set to 0 for never.
+VALUE: 0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:no_warps
+DESC: if true, will not warp the cursor in many cases (focusing, keybinds, etc)
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:persistent_warps
+DESC: When a window is refocused, the cursor returns to its last position relative to that window, rather than to the centre.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:warp_on_change_workspace
+DESC: Move the cursor to the last focused window after changing the workspace. Options: 0 (Disabled), 1 (Enabled), 2 (Force - ignores cursor:no_warps option)
+VALUE: 2
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:warp_on_toggle_special
+DESC: Move the cursor to the last focused window when toggling a special workspace. Options: 0 (Disabled), 1 (Enabled), 2 (Force - ignores cursor:no_warps option)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:default_monitor
+DESC: the name of a default monitor for the cursor to be set to on startup (see hyprctl monitors for names)
+VALUE: [[EMPTY]]
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:zoom_factor
+DESC: the factor to zoom by around the cursor. Like a magnifying glass. Minimum 1.0 (meaning no zoom)
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:zoom_rigid
+DESC: whether the zoom should follow the cursor rigidly (cursor is always centered if it can be) or loosely
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:zoom_disable_aa
+DESC: If enabled, when zooming, no antialiasing will be used (zoom will be pixelated)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:zoom_detached_camera
+DESC: Detaches the camera from the mouse when zoomed in, only ever moving to keep the mouse in view
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:enable_hyprcursor
+DESC: whether to enable hyprcursor support
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:hide_on_key_press
+DESC: Hides the cursor when you press any key until the mouse is moved.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:hide_on_touch
+DESC: Hides the cursor when the last input was a touch input until a mouse input is done.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:hide_on_tablet
+DESC: Hides the cursor when the last input was a tablet input until a mouse input is done.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:use_cpu_buffer
+DESC: Makes HW cursors use a CPU buffer. Required on Nvidia to have HW cursors. Experimental
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:sync_gsettings_theme
+DESC: sync xcursor theme with gsettings, it applies cursor-theme and cursor-size on theme load to gsettings making most CSD gtk based clients use same xcursor theme and size.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: cursor:warp_back_after_non_mouse_input
+DESC: warp the cursor back to where it was after using a non-mouse input to move it, and then returning back to mouse.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: ecosystem:no_update_news
+DESC: disable the popup that shows up when you update hyprland to a new version.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: ecosystem:no_donation_nag
+DESC: disable the popup that shows up twice a year encouraging to donate.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: ecosystem:enforce_permissions
+DESC: whether to enable permission control (see https://wiki.hypr.land/Configuring/Permissions/).
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:overlay
+DESC: print the debug performance overlay. Disable VFR for accurate results.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:damage_blink
+DESC: disable logging to a file
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:disable_logs
+DESC: disable logging to a file
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:disable_time
+DESC: disables time logging
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:damage_tracking
+DESC: redraw only the needed bits of the display. Do not change. (default: full - 2) monitor - 1, none - 0
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:enable_stdout_logs
+DESC: enables logging to stdout
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:manual_crash
+DESC: set to 1 and then back to 0 to crash Hyprland.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:suppress_errors
+DESC: if true, do not display config file parsing errors.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:disable_scale_checks
+DESC: disables verification of the scale factors. Will result in pixel alignment and rounding errors.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:error_limit
+DESC: limits the number of displayed config file parsing errors.
+VALUE: 5
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:error_position
+DESC: sets the position of the error bar. top - 0, bottom - 1
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:colored_stdout_logs
+DESC: enables colors in the stdout logs.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:log_damage
+DESC: enables logging the damage.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:pass
+DESC: enables render pass debugging.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: debug:full_cm_proto
+DESC: claims support for all cm proto features (requires restart)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:pseudotile
+DESC: enable pseudotiling. Pseudotiled windows retain their floating size when tiled.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:force_split
+DESC: 0 -> split follows mouse, 1 -> always split to the left (new = left or top) 2 -> always split to the right (new = right or bottom)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:preserve_split
+DESC: if enabled, the split (side/top) will not change regardless of what happens to the container.
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:smart_split
+DESC: if enabled, allows a more precise control over the window split direction based on the cursor's position. The window is conceptually divided into four triangles, and cursor's triangle determines the split direction. This feature also turns on preserve_split.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:smart_resizing
+DESC: if enabled, resizing direction will be determined by the mouse's position on the window (nearest to which corner). Else, it is based on the window's tiling position.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:permanent_direction_override
+DESC: if enabled, makes the preselect direction persist until either this mode is turned off, another direction is specified, or a non-direction is specified (anything other than l,r,u/t,d/b)
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:special_scale_factor
+DESC: specifies the scale factor of windows on the special workspace [0 - 1]
+VALUE: 0.800000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:split_width_multiplier
+DESC: specifies the auto-split width multiplier
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:use_active_for_splits
+DESC: whether to prefer the active window or the mouse position for splits
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:default_split_ratio
+DESC: the default split ratio on window open. 1 means even 50/50 split. [0.1 - 1.9]
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:split_bias
+DESC: specifies which window will receive the split ratio. 0 -> directional (the top or left window), 1 -> the current window
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:precise_mouse_move
+DESC: if enabled, bindm movewindow will drop the window more precisely depending on where your mouse is.
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:single_window_aspect_ratio
+DESC: If specified, whenever only a single window is open, it will be coerced into the specified aspect ratio.  Ignored if the y-value is zero.
+VALUE: 0.000000,0.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: dwindle:single_window_aspect_ratio_tolerance
+DESC: Minimum distance for single_window_aspect_ratio to take effect, in fractions of the monitor's size.
+VALUE: 0.100000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:allow_small_split
+DESC: enable adding additional master windows in a horizontal split style
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:special_scale_factor
+DESC: the scale of the special workspace windows. [0.0 - 1.0]
+VALUE: 1.000000
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:mfact
+DESC: the size as a percentage of the master window, for example `mfact = 0.70` would mean 70% of the screen will be the master window, and 30% the slave [0.0 - 1.0]
+VALUE: 0.500000
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:new_status
+DESC: `master`: new window becomes master; `slave`: new windows are added to slave stack; `inherit`: inherit from focused window
+VALUE: master
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:new_on_top
+DESC: whether a newly open window should be on the top of the stack
+VALUE: 1
+SET_BY_USER: 1
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:new_on_active
+DESC: `before`, `after`: place new window relative to the focused window; `none`: place new window according to the value of `new_on_top`. 
+VALUE: none
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:orientation
+DESC: default placement of the master area, can be left, right, top, bottom or center
+VALUE: left
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:slave_count_for_center_master
+DESC: when using orientation=center, make the master window centered only when at least this many slave windows are open. (Set 0 to always_center_master)
+VALUE: 2
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:center_master_fallback
+DESC: Set fallback for center master when slaves are less than slave_count_for_center_master, can be left ,right ,top ,bottom
+VALUE: left
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:center_ignores_reserved
+DESC: centers the master window on monitor ignoring reserved areas
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:smart_resizing
+DESC: if enabled, resizing direction will be determined by the mouse's position on the window (nearest to which corner). Else, it is based on the window's tiling position.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:drop_at_cursor
+DESC: when enabled, dragging and dropping windows will put them at the cursor position. Otherwise, when dropped at the stack side, they will go to the top/bottom of the stack depending on new_on_top.
+VALUE: 1
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: master:always_keep_position
+DESC: whether to keep the master window in its configured position when there are no slave windows
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY
+BEGIN_ENTRY
+NAME: quirks:prefer_hdr
+DESC: Prefer HDR mode. 0 - off, 1 - always, 2 - gamescope only
+VALUE: 0
+SET_BY_USER: 0
+END_ENTRY

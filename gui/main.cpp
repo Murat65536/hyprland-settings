@@ -11,7 +11,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include "../ipc_common.hpp"
+#include <cstdlib>
+#include "config_io.hpp"
 
 // Helper to split a string by delimiter
 std::vector<std::string> split_path(const std::string& s, char delim) {
@@ -710,35 +711,36 @@ std::string readString(int fd) {
 }
 
 void ConfigWindow::send_update(const std::string& name, const std::string& value) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
+    // 1. Persist to file
+    const char* home = std::getenv("HOME");
+    std::string configPath = home ? std::string(home) + "/.config/hypr/hyprland.conf" : "hyprland.conf";
+    
+    // Check if a specific settings file is preferred, otherwise use main config
+    // For safety/convention, we might want to check if the file exists, 
+    // but ConfigIO handles open failure.
+    
+    if (ConfigIO::updateOption(configPath, name, value)) {
+        std::cout << "Updated config file: " << name << " = " << value << std::endl;
+    } else {
+        std::cerr << "Failed to update config file for: " << name << std::endl;
     }
 
-    IPC::RequestType req = IPC::RequestType::SET_OPTION_PERSIST;
-    write(sock, &req, sizeof(req));
+    // 2. Apply runtime (hyprctl)
+    // Escape quotes in value
+    std::string escapedValue;
+    for (char c : value) {
+        if (c == '"') escapedValue += "\\\"";
+        else escapedValue += c;
+    }
     
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(name);
-    writeStr(value);
-    
-    // Read response
-    std::string response = readString(sock);
-    
-    ::close(sock);
-    std::cout << "Update " << name << " = " << value << " -> " << response << std::endl;
+    // For normal options (e.g. general:border_size), hyprctl keyword works
+    // Syntax: hyprctl keyword section:key value
+    std::string cmd = "hyprctl keyword " + name + " \"" + escapedValue + "\"";
+    std::cout << "Executing: " << cmd << std::endl;
+    int ret = std::system(cmd.c_str());
+    if (ret != 0) {
+        std::cerr << "Failed to execute hyprctl command" << std::endl;
+    }
 }
 
 void ConfigWindow::send_keyword_add(const std::string& type, const std::string& value) {
@@ -826,100 +828,13 @@ void ConfigWindow::load_data() {
     // Load available devices first (needed for device configs view)
     load_available_devices();
 
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "Socket creation error" << std::endl;
-        return;
-    }
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Connection failed" << std::endl;
-        ::close(sock);
-        return;
-    }
-
-    // Send GET request
-    IPC::RequestType req = IPC::RequestType::GET_ALL;
-    write(sock, &req, sizeof(req));
-
-    uint32_t count = 0;
-    readData(sock, &count, sizeof(count));
-
-    // First pass: collect all section paths
-    std::set<std::string> allSections;
-    std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
-    
-    for (uint32_t i = 0; i < count; ++i) {
-        std::string name = readString(sock);
-        std::string desc = readString(sock);
-        std::string valStr = readString(sock);
-        
-        uint8_t setByUser = 0;
-        readData(sock, &setByUser, sizeof(setByUser));
-        
-        std::string sectionPath = get_section_path(name);
-        if (!sectionPath.empty()) {
-            allSections.insert(sectionPath);
-        }
-        allOptions.emplace_back(name, valStr, desc, setByUser != 0);
-    }
-    ::close(sock);
-
-    // Create Variables parent section
+    // Create Variables parent section (Placeholder)
     auto variablesIter = m_SectionTreeStore->append();
     (*variablesIter)[m_SectionColumns.m_col_name] = "Variables";
     (*variablesIter)[m_SectionColumns.m_col_full_path] = "__variables__";
     m_SectionIters["__variables__"] = variablesIter;
 
-    // Create all section views under Variables in the tree
-    for (const auto& sectionPath : allSections) {
-        auto parts = split_path(sectionPath, ':');
-        std::string currentPath;
-        Gtk::TreeModel::iterator parentIter = variablesIter;
-        
-        for (size_t i = 0; i < parts.size(); ++i) {
-            if (i > 0) currentPath += ":";
-            currentPath += parts[i];
-            
-            if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
-                auto newIter = m_SectionTreeStore->append(parentIter->children());
-                (*newIter)[m_SectionColumns.m_col_name] = parts[i];
-                (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
-                m_SectionIters[currentPath] = newIter;
-                create_section_view(currentPath);
-            }
-            parentIter = m_SectionIters[currentPath];
-        }
-    }
-    
-    // Expand Variables section
-    m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
-
-    // Second pass: add options to their sections
-    for (const auto& [name, valStr, desc, setByUser] : allOptions) {
-        std::string sectionPath = get_section_path(name);
-        
-        if (sectionPath.empty()) {
-            // Root level option - add under Variables
-            if (m_SectionStores.find("") == m_SectionStores.end()) {
-                auto iter = m_SectionTreeStore->append(variablesIter->children());
-                (*iter)[m_SectionColumns.m_col_name] = "(root)";
-                (*iter)[m_SectionColumns.m_col_full_path] = "";
-                m_SectionIters[""] = iter;
-                create_section_view("");
-            }
-        }
-        
-        if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
-            m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
-        }
-    }
-
-    // Add Keywords parent section to the sidebar
+    // Add Keywords parent section to the sidebar (Always available)
     auto keywordsIter = m_SectionTreeStore->append();
     (*keywordsIter)[m_SectionColumns.m_col_name] = "Keywords";
     (*keywordsIter)[m_SectionColumns.m_col_full_path] = "__keywords_parent__";
@@ -949,9 +864,96 @@ void ConfigWindow::load_data() {
     create_env_vars_view();
     load_keywords();
     load_device_configs();
-    
+
     // Expand Keywords section
     m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
+
+    // Read from dump file
+    std::ifstream inFile("../hyprland_settings_dump.txt");
+    if (inFile.is_open()) {
+        std::set<std::string> allSections;
+        std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
+        
+        std::string line;
+        std::string currentName, currentDesc, currentVal;
+        bool currentSetByUser = false;
+        
+        while (std::getline(inFile, line)) {
+            if (line == "BEGIN_ENTRY") {
+                currentName = "";
+                currentDesc = "";
+                currentVal = "";
+                currentSetByUser = false;
+            } else if (line.find("NAME: ") == 0) {
+                currentName = line.substr(6);
+            } else if (line.find("DESC: ") == 0) {
+                currentDesc = line.substr(6);
+            } else if (line.find("VALUE: ") == 0) {
+                currentVal = line.substr(7);
+            } else if (line.find("SET_BY_USER: ") == 0) {
+                currentSetByUser = (line.substr(13) == "1");
+            } else if (line == "END_ENTRY") {
+                if (!currentName.empty()) {
+                    std::string sectionPath = get_section_path(currentName);
+                    if (!sectionPath.empty()) {
+                        allSections.insert(sectionPath);
+                    }
+                    allOptions.emplace_back(currentName, currentVal, currentDesc, currentSetByUser);
+                }
+            }
+        }
+        inFile.close();
+
+        // Create all section views under Variables in the tree
+        for (const auto& sectionPath : allSections) {
+            auto parts = split_path(sectionPath, ':');
+            std::string currentPath;
+            Gtk::TreeModel::iterator parentIter = variablesIter;
+            
+            for (size_t i = 0; i < parts.size(); ++i) {
+                if (i > 0) currentPath += ":";
+                currentPath += parts[i];
+                
+                if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
+                    auto newIter = m_SectionTreeStore->append(parentIter->children());
+                    (*newIter)[m_SectionColumns.m_col_name] = parts[i];
+                    (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
+                    m_SectionIters[currentPath] = newIter;
+                    create_section_view(currentPath);
+                }
+                parentIter = m_SectionIters[currentPath];
+            }
+        }
+        
+        // Second pass: add options to their sections
+        for (const auto& [name, valStr, desc, setByUser] : allOptions) {
+            std::string sectionPath = get_section_path(name);
+            
+            if (sectionPath.empty()) {
+                // Root level option - add under Variables
+                if (m_SectionStores.find("") == m_SectionStores.end()) {
+                    auto iter = m_SectionTreeStore->append(variablesIter->children());
+                    (*iter)[m_SectionColumns.m_col_name] = "(root)";
+                    (*iter)[m_SectionColumns.m_col_full_path] = "";
+                    m_SectionIters[""] = iter;
+                    create_section_view("");
+                }
+            }
+            
+            if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
+                m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
+            }
+        }
+        
+        // Expand Variables section
+        m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
+    } else {
+        // Optional: Add a "Data not found" item under Variables
+        auto iter = m_SectionTreeStore->append(variablesIter->children());
+        (*iter)[m_SectionColumns.m_col_name] = "Data not found. (Reload Plugin?)";
+        (*iter)[m_SectionColumns.m_col_full_path] = "";
+        m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
+    }
 }
 
 int main(int argc, char* argv[])
