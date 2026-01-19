@@ -55,9 +55,6 @@ jobs:
           export WLR_RENDERER=pixman
           export SEATD_SOCK=/run/seatd.sock
           
-          # Set cache directory
-          export XDG_CACHE_HOME=/tmp/.cache
-          
           # Ensure directories exist with proper permissions
           mkdir -p $XDG_RUNTIME_DIR/hypr
           chmod -R 700 $XDG_RUNTIME_DIR
