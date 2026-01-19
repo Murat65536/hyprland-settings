@@ -54,6 +54,18 @@ jobs:
           export GALLIUM_DRIVER=llvmpipe
           export WLR_RENDERER=pixman
           export SEATD_SOCK=/run/seatd.sock
+          
+          # Set cache directory
+          export XDG_CACHE_HOME=/tmp/.cache
+          
+          # Ensure directories exist with proper permissions
+          mkdir -p $XDG_RUNTIME_DIR/hypr
+          chmod -R 700 $XDG_RUNTIME_DIR
+          
+          # Try with DRM backend disabled, force software rendering
+          export AQ_DRM_DEVICES=
+          export AQ_NO_ATOMIC=1
+
 
 
           # Create a minimal config that loads the plugin
