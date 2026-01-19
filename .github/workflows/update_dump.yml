@@ -44,18 +44,20 @@ jobs:
           AQ_TRACE: 1
         run: |
           # Setup Environment for Headless Execution
-          export AQ_BACKEND=headless
-          export AQ_NO_MODIFIERS=1
           export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
-          mkdir -p $XDG_RUNTIME_DIR
-          chmod 700 $XDG_RUNTIME_DIR
+          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export GALLIUM_DRIVER=llvmpipe
+          export WLR_RENDERER=pixman
+          export SEATD_SOCK=/run/seatd.sock
+
 
           # Create a minimal config that loads the plugin
           echo "plugin = $(pwd)/hyprland_settings_plugin.so" > hyprland.conf
           
           # Run Hyprland with a timeout
           # We use --i-am-really-stupid to allow running as root in the CI container
-          timeout 10s Hyprland --i-am-really-stupid -c hyprland.conf || true
+          timeout 100s Hyprland --i-am-really-stupid -c hyprland.conf || true
           
           # Check if file exists
           if [ -f "hyprland_settings_dump.txt" ]; then
