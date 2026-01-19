@@ -6,6 +6,8 @@
 #include <sstream>
 #include <map>
 #include <set>
+#include <regex>
+#include <cstdlib>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -88,18 +90,14 @@ protected:
     public:
         std::string m_type;      // exec-once, execr, etc.
         std::string m_value;     // The command
-        std::string m_filePath;  // Config file location
-        int m_lineNumber;        // Line in the file
 
-        static Glib::RefPtr<KeywordItem> create(const std::string& type, const std::string& value,
-                                                  const std::string& filePath, int lineNumber) {
-            return Glib::make_refptr_for_instance<KeywordItem>(new KeywordItem(type, value, filePath, lineNumber));
+        static Glib::RefPtr<KeywordItem> create(const std::string& type, const std::string& value) {
+            return Glib::make_refptr_for_instance<KeywordItem>(new KeywordItem(type, value));
         }
 
     protected:
-        KeywordItem(const std::string& type, const std::string& value,
-                    const std::string& filePath, int lineNumber)
-            : m_type(type), m_value(value), m_filePath(filePath), m_lineNumber(lineNumber) {}
+        KeywordItem(const std::string& type, const std::string& value)
+            : m_type(type), m_value(value) {}
     };
 
     // Device config item for per-device input configs
@@ -108,23 +106,17 @@ protected:
         std::string m_deviceName;  // Device name from hyprctl
         std::string m_option;      // Config option (sensitivity, etc.)
         std::string m_value;       // The value
-        std::string m_filePath;    // Config file location
-        int m_startLine;           // Line where device section starts
-        int m_optionLine;          // Line where this option is
 
         static Glib::RefPtr<DeviceConfigItem> create(const std::string& deviceName, const std::string& option,
-                                                      const std::string& value, const std::string& filePath,
-                                                      int startLine, int optionLine) {
+                                                      const std::string& value) {
             return Glib::make_refptr_for_instance<DeviceConfigItem>(
-                new DeviceConfigItem(deviceName, option, value, filePath, startLine, optionLine));
+                new DeviceConfigItem(deviceName, option, value));
         }
 
     protected:
         DeviceConfigItem(const std::string& deviceName, const std::string& option,
-                         const std::string& value, const std::string& filePath,
-                         int startLine, int optionLine)
-            : m_deviceName(deviceName), m_option(option), m_value(value),
-              m_filePath(filePath), m_startLine(startLine), m_optionLine(optionLine) {}
+                         const std::string& value)
+            : m_deviceName(deviceName), m_option(option), m_value(value) {}
     };
 
     std::map<std::string, Glib::RefPtr<Gio::ListStore<ConfigItem>>> m_SectionStores;
@@ -144,20 +136,16 @@ protected:
     // Keyword-specific methods
     void setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void setup_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void bind_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
     // Device config methods
     void setup_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_device_option(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_device_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void setup_device_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_device_option(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_device_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    void bind_device_actions(const Glib::RefPtr<Gtk::ListItem>& list_item);
     
     void load_data();
     void load_keywords();
@@ -165,13 +153,7 @@ protected:
     void load_available_devices();
     void send_update(const std::string& name, const std::string& value);
     void send_keyword_add(const std::string& type, const std::string& value);
-    void send_keyword_remove(const std::string& filePath, int lineNumber);
-    void send_keyword_update(const std::string& filePath, int lineNumber, 
-                              const std::string& type, const std::string& value);
     void send_device_config_add(const std::string& deviceName, const std::string& option, const std::string& value);
-    void send_device_config_update(const std::string& filePath, int lineNumber,
-                                    const std::string& deviceName, const std::string& option, const std::string& value);
-    void send_device_config_remove(const std::string& filePath, int lineNumber, const std::string& deviceName);
     void create_section_view(const std::string& sectionPath);
     void create_executing_view();
     void create_device_configs_view();
@@ -293,7 +275,7 @@ void ConfigWindow::create_executing_view() {
     mainBox->set_margin(10);
 
     // Add new keyword section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Exec Command");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Exec Command (Runtime)");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -315,8 +297,8 @@ void ConfigWindow::create_executing_view() {
             std::string value = valueEntry->get_text();
             if (!value.empty()) {
                 send_keyword_add(typeStr, value);
+                m_ExecutingStore->append(KeywordItem::create(typeStr, value));
                 valueEntry->set_text("");
-                load_keywords();
             }
         }
     });
@@ -350,14 +332,6 @@ void ConfigWindow::create_executing_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    // Actions column
-    auto factory_actions = Gtk::SignalListItemFactory::create();
-    factory_actions->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_actions));
-    factory_actions->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_actions));
-    auto col_actions = Gtk::ColumnViewColumn::create("Actions", factory_actions);
-    col_actions->set_fixed_width(80);
-    columnView->append_column(col_actions);
-
     auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
     scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
     scrolledWindow->set_child(*columnView);
@@ -373,7 +347,7 @@ void ConfigWindow::create_env_vars_view() {
     mainBox->set_margin(10);
 
     // Add new environment variable section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Environment Variable");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Environment Variable (Runtime)");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -399,10 +373,11 @@ void ConfigWindow::create_env_vars_view() {
             std::string name = nameEntry->get_text();
             std::string value = valueEntry->get_text();
             if (!name.empty()) {
-                send_keyword_add(typeStr, name + "," + value);
+                std::string fullVal = name + "," + value;
+                send_keyword_add(typeStr, fullVal);
+                m_EnvVarStore->append(KeywordItem::create(typeStr, fullVal));
                 nameEntry->set_text("");
                 valueEntry->set_text("");
-                load_keywords();
             }
         }
     });
@@ -437,14 +412,6 @@ void ConfigWindow::create_env_vars_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    // Actions column
-    auto factory_actions = Gtk::SignalListItemFactory::create();
-    factory_actions->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_keyword_actions));
-    factory_actions->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_keyword_actions));
-    auto col_actions = Gtk::ColumnViewColumn::create("Actions", factory_actions);
-    col_actions->set_fixed_width(80);
-    columnView->append_column(col_actions);
-
     auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
     scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
     scrolledWindow->set_child(*columnView);
@@ -460,7 +427,7 @@ void ConfigWindow::create_device_configs_view() {
     mainBox->set_margin(10);
 
     // Add new device config section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add Per-Device Input Config");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Set Per-Device Config (Runtime)");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -494,7 +461,7 @@ void ConfigWindow::create_device_configs_view() {
     valueEntry->set_placeholder_text("Value...");
     valueEntry->set_hexpand(true);
 
-    auto addButton = Gtk::make_managed<Gtk::Button>("Add");
+    auto addButton = Gtk::make_managed<Gtk::Button>("Apply");
     addButton->signal_clicked().connect([this, deviceCombo, deviceModel, optionCombo, optionModel, valueEntry]() {
         auto deviceIdx = deviceCombo->get_selected();
         auto optionIdx = optionCombo->get_selected();
@@ -504,8 +471,8 @@ void ConfigWindow::create_device_configs_view() {
             std::string value = valueEntry->get_text();
             if (!value.empty()) {
                 send_device_config_add(deviceName, option, value);
+                m_DeviceConfigStore->append(DeviceConfigItem::create(deviceName, option, value));
                 valueEntry->set_text("");
-                load_device_configs();
             }
         }
     });
@@ -547,14 +514,6 @@ void ConfigWindow::create_device_configs_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    // Actions column
-    auto factory_actions = Gtk::SignalListItemFactory::create();
-    factory_actions->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_device_actions));
-    factory_actions->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_device_actions));
-    auto col_actions = Gtk::ColumnViewColumn::create("Actions", factory_actions);
-    col_actions->set_fixed_width(80);
-    columnView->append_column(col_actions);
-
     auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
     scrolledWindow->set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
     scrolledWindow->set_child(*columnView);
@@ -571,31 +530,10 @@ void ConfigWindow::setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_it
 }
 
 void ConfigWindow::setup_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto label = Gtk::make_managed<Gtk::EditableLabel>();
+    auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
     label->set_hexpand(true);
-    
-    label->property_editing().signal_changed().connect([this, label, list_item]() {
-        if (!label->get_editing()) {
-            auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
-            if (item) {
-                std::string newVal = label->get_text();
-                if (newVal != item->m_value) {
-                    send_keyword_update(item->m_filePath, item->m_lineNumber, item->m_type, newVal);
-                    load_keywords();
-                }
-            }
-        }
-    });
-
     list_item->set_child(*label);
-}
-
-void ConfigWindow::setup_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto button = Gtk::make_managed<Gtk::Button>();
-    button->set_icon_name("user-trash-symbolic");
-    button->set_tooltip_text("Delete");
-    list_item->set_child(*button);
 }
 
 void ConfigWindow::bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -603,27 +541,14 @@ void ConfigWindow::bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_ite
     auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
     if (item && label) {
         label->set_text(item->m_type);
-        label->set_tooltip_text("File: " + item->m_filePath + "\nLine: " + std::to_string(item->m_lineNumber));
     }
 }
 
 void ConfigWindow::bind_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
-    auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
+    auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
     if (item && label) {
         label->set_text(item->m_value);
-    }
-}
-
-void ConfigWindow::bind_keyword_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto item = std::dynamic_pointer_cast<KeywordItem>(list_item->get_item());
-    auto button = dynamic_cast<Gtk::Button*>(list_item->get_child());
-    if (item && button) {
-        // Disconnect any previous handler
-        button->signal_clicked().connect([this, item]() {
-            send_keyword_remove(item->m_filePath, item->m_lineNumber);
-            load_keywords();
-        });
     }
 }
 
@@ -641,32 +566,10 @@ void ConfigWindow::setup_device_option(const Glib::RefPtr<Gtk::ListItem>& list_i
 }
 
 void ConfigWindow::setup_device_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto label = Gtk::make_managed<Gtk::EditableLabel>();
+    auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
     label->set_hexpand(true);
-    
-    label->property_editing().signal_changed().connect([this, label, list_item]() {
-        if (!label->get_editing()) {
-            auto item = std::dynamic_pointer_cast<DeviceConfigItem>(list_item->get_item());
-            if (item) {
-                std::string newVal = label->get_text();
-                if (newVal != item->m_value) {
-                    send_device_config_update(item->m_filePath, item->m_optionLine,
-                                               item->m_deviceName, item->m_option, newVal);
-                    load_device_configs();
-                }
-            }
-        }
-    });
-
     list_item->set_child(*label);
-}
-
-void ConfigWindow::setup_device_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto button = Gtk::make_managed<Gtk::Button>();
-    button->set_icon_name("user-trash-symbolic");
-    button->set_tooltip_text("Delete");
-    list_item->set_child(*button);
 }
 
 void ConfigWindow::bind_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -674,7 +577,6 @@ void ConfigWindow::bind_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item
     auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
     if (item && label) {
         label->set_text(item->m_deviceName);
-        label->set_tooltip_text("File: " + item->m_filePath + "\nSection starts at line: " + std::to_string(item->m_startLine));
     }
 }
 
@@ -688,20 +590,9 @@ void ConfigWindow::bind_device_option(const Glib::RefPtr<Gtk::ListItem>& list_it
 
 void ConfigWindow::bind_device_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<DeviceConfigItem>(list_item->get_item());
-    auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
+    auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
     if (item && label) {
         label->set_text(item->m_value);
-    }
-}
-
-void ConfigWindow::bind_device_actions(const Glib::RefPtr<Gtk::ListItem>& list_item) {
-    auto item = std::dynamic_pointer_cast<DeviceConfigItem>(list_item->get_item());
-    auto button = dynamic_cast<Gtk::Button*>(list_item->get_child());
-    if (item && button) {
-        button->signal_clicked().connect([this, item]() {
-            send_device_config_remove(item->m_filePath, item->m_optionLine, item->m_deviceName);
-            load_device_configs();
-        });
     }
 }
 
@@ -714,7 +605,6 @@ void ConfigWindow::on_section_selected() {
 }
 
 std::string ConfigWindow::get_section_path(const std::string& optionName) {
-    // For "decoration:blur:noise", return "decoration:blur"
     size_t pos = optionName.rfind(':');
     if (pos != std::string::npos) {
         return optionName.substr(0, pos);
@@ -761,8 +651,6 @@ void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_ite
     list_item->set_child(*label);
 }
 
-
-
 void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = Gtk::make_managed<Gtk::EditableLabel>();
     label->set_halign(Gtk::Align::START);
@@ -797,8 +685,6 @@ void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
     if (item && label) label->set_text(item->m_value);
 }
-
-
 
 void ConfigWindow::on_button_refresh() {
     load_data();
@@ -856,315 +742,71 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
 }
 
 void ConfigWindow::send_keyword_add(const std::string& type, const std::string& value) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
+    // Escape quotes in value
+    std::string escapedValue;
+    for (char c : value) {
+        if (c == '"') escapedValue += "\\\"";
+        else escapedValue += c;
     }
-
-    IPC::RequestType req = IPC::RequestType::ADD_KEYWORD;
-    write(sock, &req, sizeof(req));
     
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(type);
-    writeStr(value);
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Add keyword " << type << " = " << value << " -> " << response << std::endl;
-}
-
-void ConfigWindow::send_keyword_remove(const std::string& filePath, int lineNumber) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
+    std::string cmd = "hyprctl keyword " + type + " \"" + escapedValue + "\"";
+    std::cout << "Executing: " << cmd << std::endl;
+    int ret = std::system(cmd.c_str());
+    if (ret != 0) {
+        std::cerr << "Failed to execute hyprctl command" << std::endl;
     }
-
-    IPC::RequestType req = IPC::RequestType::REMOVE_KEYWORD;
-    write(sock, &req, sizeof(req));
-    
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(filePath);
-    int32_t lineNum = lineNumber;
-    write(sock, &lineNum, sizeof(lineNum));
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Remove keyword at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
-}
-
-void ConfigWindow::send_keyword_update(const std::string& filePath, int lineNumber,
-                                        const std::string& type, const std::string& value) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
-    }
-
-    IPC::RequestType req = IPC::RequestType::UPDATE_KEYWORD;
-    write(sock, &req, sizeof(req));
-    
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(filePath);
-    int32_t lineNum = lineNumber;
-    write(sock, &lineNum, sizeof(lineNum));
-    writeStr(type);
-    writeStr(value);
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Update keyword at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
 }
 
 void ConfigWindow::send_device_config_add(const std::string& deviceName, const std::string& option, const std::string& value) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
+    // Escape quotes
+    std::string escapedValue;
+    for (char c : value) {
+        if (c == '"') escapedValue += "\\\"";
+        else escapedValue += c;
     }
-
-    IPC::RequestType req = IPC::RequestType::ADD_DEVICE_CONFIG;
-    write(sock, &req, sizeof(req));
     
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(deviceName);
-    writeStr(option);
-    writeStr(value);
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Add device config " << deviceName << ":" << option << " = " << value << " -> " << response << std::endl;
-}
-
-void ConfigWindow::send_device_config_update(const std::string& filePath, int lineNumber,
-                                              const std::string& deviceName, const std::string& option, const std::string& value) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
+    // hyprctl keyword device:name:option value
+    std::string cmd = "hyprctl keyword device:" + deviceName + ":" + option + " \"" + escapedValue + "\"";
+    std::cout << "Executing: " << cmd << std::endl;
+    int ret = std::system(cmd.c_str());
+    if (ret != 0) {
+        std::cerr << "Failed to execute hyprctl command" << std::endl;
     }
-
-    IPC::RequestType req = IPC::RequestType::UPDATE_DEVICE_CONFIG;
-    write(sock, &req, sizeof(req));
-    
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(filePath);
-    int32_t lineNum = lineNumber;
-    write(sock, &lineNum, sizeof(lineNum));
-    writeStr(deviceName);
-    writeStr(option);
-    writeStr(value);
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Update device config at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
-}
-
-void ConfigWindow::send_device_config_remove(const std::string& filePath, int lineNumber, const std::string& deviceName) {
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return;
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        ::close(sock);
-        return;
-    }
-
-    IPC::RequestType req = IPC::RequestType::REMOVE_DEVICE_CONFIG;
-    write(sock, &req, sizeof(req));
-    
-    auto writeStr = [&](const std::string& s) {
-        uint32_t len = s.length();
-        write(sock, &len, sizeof(len));
-        if (len > 0) write(sock, s.c_str(), len);
-    };
-
-    writeStr(filePath);
-    int32_t lineNum = lineNumber;
-    write(sock, &lineNum, sizeof(lineNum));
-    writeStr(deviceName);
-    
-    std::string response = readString(sock);
-    ::close(sock);
-    std::cout << "Remove device config at " << filePath << ":" << lineNumber << " -> " << response << std::endl;
 }
 
 void ConfigWindow::load_keywords() {
     m_KeywordStore->remove_all();
     m_ExecutingStore->remove_all();
     m_EnvVarStore->remove_all();
-
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "Socket creation error" << std::endl;
-        return;
-    }
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Connection failed for keywords" << std::endl;
-        ::close(sock);
-        return;
-    }
-
-    IPC::RequestType req = IPC::RequestType::GET_KEYWORDS;
-    write(sock, &req, sizeof(req));
-
-    uint32_t count = 0;
-    readData(sock, &count, sizeof(count));
-
-    for (uint32_t i = 0; i < count; ++i) {
-        std::string type = readString(sock);
-        std::string value = readString(sock);
-        std::string filePath = readString(sock);
-        int32_t lineNumber;
-        readData(sock, &lineNumber, sizeof(lineNumber));
-
-        auto item = KeywordItem::create(type, value, filePath, lineNumber);
-        m_KeywordStore->append(item);
-        
-        if (type.find("exec") == 0) {
-            m_ExecutingStore->append(item);
-        } else if (type == "env" || type == "envd") {
-            m_EnvVarStore->append(item);
-        }
-    }
-    ::close(sock);
+    // Cannot list keywords via hyprctl easily.
 }
 
 void ConfigWindow::load_device_configs() {
     m_DeviceConfigStore->remove_all();
-
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "Socket creation error" << std::endl;
-        return;
-    }
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Connection failed for device configs" << std::endl;
-        ::close(sock);
-        return;
-    }
-
-    IPC::RequestType req = IPC::RequestType::GET_DEVICE_CONFIGS;
-    write(sock, &req, sizeof(req));
-
-    uint32_t count = 0;
-    readData(sock, &count, sizeof(count));
-
-    for (uint32_t i = 0; i < count; ++i) {
-        std::string deviceName = readString(sock);
-        std::string option = readString(sock);
-        std::string value = readString(sock);
-        std::string filePath = readString(sock);
-        int32_t startLine, optionLine;
-        readData(sock, &startLine, sizeof(startLine));
-        readData(sock, &optionLine, sizeof(optionLine));
-
-        m_DeviceConfigStore->append(DeviceConfigItem::create(deviceName, option, value, filePath, startLine, optionLine));
-    }
-    ::close(sock);
+    // Cannot list device configs via hyprctl easily.
 }
 
 void ConfigWindow::load_available_devices() {
     m_AvailableDevices.clear();
-
-    int sock = 0;
-    struct sockaddr_un serv_addr;
-    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "Socket creation error" << std::endl;
-        return;
-    }
-
-    serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, IPC::SOCKET_PATH, sizeof(serv_addr.sun_path) - 1);
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Connection failed for devices" << std::endl;
-        ::close(sock);
-        return;
-    }
-
-    IPC::RequestType req = IPC::RequestType::GET_DEVICES;
-    write(sock, &req, sizeof(req));
-
-    uint32_t count = 0;
-    readData(sock, &count, sizeof(count));
     
-    for (uint32_t i = 0; i < count; ++i) {
-        std::string name = readString(sock);
-        if (!name.empty()) {
-            m_AvailableDevices.push_back(name);
+    std::string output;
+    try {
+        FILE* pipe = popen("hyprctl -j devices", "r");
+        if (!pipe) return;
+        char buffer[128];
+        while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            output += buffer;
         }
+        pclose(pipe);
+    } catch (...) { return; }
+
+    std::regex name_regex("\"name\":\\s*\"([^\"]+)\"");
+    std::smatch match;
+    std::string::const_iterator searchStart(output.cbegin());
+    while (std::regex_search(searchStart, output.cend(), match, name_regex)) {
+        m_AvailableDevices.push_back(match[1]);
+        searchStart = match.suffix().first;
     }
-    ::close(sock);
 }
 
 void ConfigWindow::load_data() {
