@@ -25,9 +25,9 @@ jobs:
 
       - name: Build Plugin
         run: |
-          # Build using the headers provided by the arch package
-          # Using update/main.cpp based on repository structure
-          g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 \n            $(pkg-config --cflags hyprland) \n            update/main.cpp -o hyprland_settings_plugin.so
+          # Debug and Build
+          echo "Hyprland CFLAGS: $(pkg-config --cflags hyprland)"
+          g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 $(pkg-config --cflags hyprland) update/main.cpp -o hyprland_settings_plugin.so
 
       - name: Run Hyprland and Generate Dump
         timeout-minutes: 1
