@@ -23,15 +23,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Debug File Structure
-        run: |
-          echo "Current Directory: $(pwd)"
-          ls -R
-
       - name: Build Plugin
         run: |
           # Build using the headers provided by the arch package
-          g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 \n            $(pkg-config --cflags hyprland) \n            main.cpp -o hyprland_settings_plugin.so
+          # Using update/main.cpp based on repository structure
+          g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 \n            $(pkg-config --cflags hyprland) \n            update/main.cpp -o hyprland_settings_plugin.so
 
       - name: Run Hyprland and Generate Dump
         timeout-minutes: 1
