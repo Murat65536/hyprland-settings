@@ -24,5 +24,10 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
-          export XDG_RUNTIME_DIR=/tmp
+          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
+          mkdir -p $XDG_RUNTIME_DIR
+          chmod 700 $XDG_RUNTIME_DIR
+          export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
+          export WLR_RENDERER=pixman
           Hyprland --i-am-really-stupid &
