@@ -15,28 +15,46 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
-            hyprland
+            hyprland \
+            seatd \
+            xwayland \
+            xvfb
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Hyprland Headless
+      - name: Setup virtual DRM device
         run: |
-          export HOME=/home
-          mkdir -p $HOME
-
-          mkdir -p /tmp/hyprland-runtime
-          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
-          chmod 700 $XDG_RUNTIME_DIR
-          
-          mkdir -p $HOME/.cache/hyprland
-          mkdir -p /tmp/hypr
-          
+          sudo modprobe vkms || true
+          # Create dummy DRM device if needed
+          sudo mkdir -p /dev/dri
+          sudo mknod /dev/dri/card0 c 226 0 || true
+          sudo chmod 666 /dev/dri/card0 || true
+    
+      - name: Run Hyprland headless
+        run: |
+          # Start seatd
+          sudo seatd -g video &
+          sleep 1
+        
+          # Set environment variables
+          export LIBSEAT_BACKEND=seatd
           export WLR_BACKENDS=headless
-          export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
           export AQ_NO_MODIFIERS=1
-
-          Hyprland --i-am-really-stupid 2>&1 || echo "Hyprland exited with code $?"
-
+          export WLR_NO_HARDWARE_CURSORS=1
+          export HYPRLAND_NO_RT=1
+          export HYPRLAND_NO_SD_NOTIFY=1
+        
+          # Run Hyprland in background
+          hyprland &
+          HYPRLAND_PID=$!
+        
+          # Wait for it to start
+          sleep 3
+        
+          # Your tests here
+        
+          # Cleanup
+          kill $HYPRLAND_PID || true
           cat /home/.cache/hyprland/hyprlandCrashReport*.txt
