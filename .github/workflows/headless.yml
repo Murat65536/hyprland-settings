@@ -16,39 +16,27 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
             hyprland \
-            base-devel \
-            xorg-server-xvfb \
-            xorg-xwayland \
-            mesa \
-            pixman
-
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup virtual DRM device
+      - name: Run Hyprland Headless
         run: |
-          sudo modprobe vkms || true
-          # Create dummy DRM device if needed
-          sudo mkdir -p /dev/dri
-          sudo mknod /dev/dri/card0 c 226 0 || true
-          sudo chmod 666 /dev/dri/card0 || true
-    
-      - name: Run Hyprland headless
-        run: |
-          # Set environment variables
-          mkdir -p /home/runtime-dir
-          chmod 700 /home/runtime-dir
-          export XDG_RUNTIME_DIR=/home/runtime-dir
-          export LIBSEAT_BACKEND=noop
+          export HOME=/home
+          mkdir -p $HOME
+
+          mkdir -p /tmp/hyprland-runtime
+          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
+          chmod 700 $XDG_RUNTIME_DIR
+          
+          mkdir -p $HOME/.cache/hyprland
+          mkdir -p /tmp/hypr
+          
           export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
-          export WLR_RENDERER_ALLOW_SOFTWARE=1
           export AQ_NO_MODIFIERS=1
-          export WLR_NO_HARDWARE_CURSORS=1
-          export HYPRLAND_NO_RT=1
-          export HYPRLAND_NO_SD_NOTIFY=1
-        
-          # Run Hyprland in background
+
           start-hyprland -- --i-am-really-stupid &
+
           cat /home/.cache/hyprland/hyprlandCrashReport*.txt
