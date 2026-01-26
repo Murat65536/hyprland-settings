@@ -50,6 +50,11 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
+          # Setup XDG_RUNTIME_DIR
+          export XDG_RUNTIME_DIR=/tmp/hypr
+          mkdir -p $XDG_RUNTIME_DIR
+          chmod 700 $XDG_RUNTIME_DIR
+
           # Create a dummy config to avoid first-run warnings/errors
           mkdir -p ~/.config/hypr
           touch ~/.config/hypr/hyprland.conf
