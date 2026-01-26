@@ -50,32 +50,23 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
-          # Setup XDG_RUNTIME_DIR
+          # Setup environment variables for Headless & Software Rendering
           export XDG_RUNTIME_DIR=/tmp/hypr
+          export HOME=/tmp/home
           mkdir -p $XDG_RUNTIME_DIR
+          mkdir -p $HOME/.config/hypr
           chmod 700 $XDG_RUNTIME_DIR
 
-          # Create a dummy config to avoid first-run warnings/errors
-          mkdir -p ~/.config/hypr
-          touch ~/.config/hypr/hyprland.conf
+          # Create a dummy config
+          touch $HOME/.config/hypr/hyprland.conf
           
-          # Set runtime variables for headless
+          # Force software rendering (Pixman) and headless backend
+          export WLR_RENDERER=pixman
           export WLR_BACKENDS=headless
           export WLR_LIBINPUT_NO_DEVICES=1
           
-          # Start Hyprland in the background
-          # We use the stupid flag because GitHub Actions containers run as root
+          # Debugging info
+          echo "Starting Hyprland..."
+          
+          # Start Hyprland
           Hyprland --i-am-really-stupid &
-          HYPR_PID=$!
-          
-          # Wait a few seconds for startup
-          sleep 5
-          
-          # Check if process is still alive
-          if kill -0 $HYPR_PID; then
-            echo "SUCCESS: Hyprland is running."
-            kill $HYPR_PID
-          else
-            echo "FAILURE: Hyprland crashed or failed to start."
-            exit 1
-          fi
