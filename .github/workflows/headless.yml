@@ -64,7 +64,8 @@ jobs:
           export WLR_LIBINPUT_NO_DEVICES=1
           
           # Start Hyprland in the background
-          Hyprland &
+          # We use the stupid flag because GitHub Actions containers run as root
+          Hyprland --i-am-really-stupid &
           HYPR_PID=$!
           
           # Wait a few seconds for startup
