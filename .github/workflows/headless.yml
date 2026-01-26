@@ -37,6 +37,6 @@ jobs:
           export WLR_RENDERER=pixman
           export AQ_NO_MODIFIERS=1
 
-          start-hyprland -- --i-am-really-stupid &
+          Hyprland --i-am-really-stupid &
 
           cat /home/.cache/hyprland/hyprlandCrashReport*.txt
