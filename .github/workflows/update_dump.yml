@@ -33,7 +33,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           # Install Hyprland, Weston, and dependencies
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston dbus
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston dbus mesa-utils
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -49,7 +49,8 @@ jobs:
           # Setup directories
           export XDG_RUNTIME_DIR=/tmp/hypr-runtime
           export HOME=/tmp/hypr-home
-          mkdir -p $XDG_RUNTIME_DIR $HOME
+          export XDG_CACHE_HOME=/tmp/hypr-cache
+          mkdir -p $XDG_RUNTIME_DIR $HOME $XDG_CACHE_HOME
           chmod 700 $XDG_RUNTIME_DIR
 
           # Start Weston (Headless Host)
@@ -73,15 +74,20 @@ jobs:
             exit 1
           fi
 
-          # Prepare Hyprland
-          # AQ_BACKEND=wayland: Force Aquamarine to use the Wayland backend (nested in Weston)
-          export AQ_BACKEND=wayland
-          export WAYLAND_DISPLAY=wayland-1
-          export WLR_RENDERER=pixman
+          # Prepare Hyprland Environment
+          # We rely on Hyprland auto-detecting the Wayland backend via WAYLAND_DISPLAY
+          # We force software rendering via Mesa variables
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
           export AQ_TRACE=1
           
+          # Debugging: Check OpenGL status
+          # We use glxinfo (part of mesa-utils) but it might not be installed. 
+          # We'll skip if not present, but it's good practice to have it.
+          if command -v glxinfo &> /dev/null; then
+              glxinfo -B || echo "glxinfo failed"
+          fi
+
           # Hyprland Config
           PLUGIN_PATH=$(pwd)/hyprland_settings_plugin.so
           echo "plugin = $PLUGIN_PATH" > hyprland.conf
@@ -89,8 +95,8 @@ jobs:
           
           echo "Starting Hyprland..."
           # Run Hyprland nested inside Weston
-          # dbus-run-session: Sometimes required for stable session initialization
-          timeout 15s dbus-run-session Hyprland --i-am-really-stupid --config hyprland.conf || true
+          # No explicit backend flag - let it detect WAYLAND_DISPLAY
+          timeout 15s Hyprland --i-am-really-stupid --config hyprland.conf || true
           
           # Cleanup
           kill $WESTON_PID || true
@@ -101,6 +107,8 @@ jobs:
           else
             echo "Error: Dump file was not generated."
             ls -R $HOME
+            # Check for Hyprland logs
+            find $XDG_CACHE_HOME -name "hyprland*" -exec cat {} +
             exit 1
           fi
 
