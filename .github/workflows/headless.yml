@@ -37,9 +37,9 @@ jobs:
       - name: Run Hyprland headless
         run: |
           # Set environment variables
-          mkdir -p /tmp/runtime-dir
-          chmod 700 /tmp/runtime-dir
-          export XDG_RUNTIME_DIR=/tmp/runtime-dir
+          mkdir -p /home/runtime-dir
+          chmod 700 /home/runtime-dir
+          export XDG_RUNTIME_DIR=/home/runtime-dir
           export LIBSEAT_BACKEND=noop
           export WLR_BACKENDS=headless
           export WLR_RENDERER=pixman
@@ -51,13 +51,4 @@ jobs:
         
           # Run Hyprland in background
           start-hyprland -- --i-am-really-stupid &
-          HYPRLAND_PID=$!
-        
-          # Wait for it to start
-          sleep 3
-        
-          # Your tests here
-        
-          # Cleanup
-          kill $HYPRLAND_PID || true
           cat /home/.cache/hyprland/hyprlandCrashReport*.txt
