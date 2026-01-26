@@ -24,20 +24,18 @@ jobs:
         run: |
           useradd -m user
           chown -R user:user /home
-          sudo -u user "\
-          export HOME=/home\
-          mkdir -p $HOME\
+          export HOME=/home
+          mkdir -p $HOME
 
-          mkdir -p /tmp/hyprland-runtime\
-          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime\
-          chmod 700 $XDG_RUNTIME_DIR\
+          mkdir -p /tmp/hyprland-runtime
+          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
+          chmod 700 $XDG_RUNTIME_DIR
           
-          mkdir -p $HOME/.cache/hyprland\
-          mkdir -p /tmp/hypr\
+          mkdir -p $HOME/.cache/hyprland
+          mkdir -p /tmp/hypr
           
-          export WLR_BACKENDS=headless\
-          export WLR_LIBINPUT_NO_DEVICES=1\
-          export WLR_RENDERER=pixman\
+          export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
+          export WLR_RENDERER=pixman
 
-          Hyprland 2>&1 || echo "Hyprland exited with code $?"\
-          \"
+          sudo -u user "Hyprland 2>&1 || echo 'Hyprland exited with code $?'"
