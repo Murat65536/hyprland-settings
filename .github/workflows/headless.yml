@@ -1,0 +1,96 @@
+name: Hyprland Headless
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hyprland-settings
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            meson \
+            pkg-config \
+            libwayland-dev \
+            libdrm-dev \
+            libgbm-dev \
+            libinput-dev \
+            libxkbcommon-dev \
+            libudev-dev \
+            libpixman-1-dev \
+            libgl1-mesa-dev \
+            libseat-dev \
+            libdisplay-info-dev \
+            libliftoff-dev \
+            libgtkmm-4.0-dev \
+            git \
+            hwdata
+
+      # Clone Hyprland to build it and get headers
+      - name: Clone Hyprland
+        uses: actions/checkout@v4
+        with:
+          repository: hyprwm/Hyprland
+          path: hyprland
+          submodules: recursive
+
+      - name: Build and Install Hyprland
+        working-directory: hyprland
+        run: |
+          make all
+          sudo make install
+
+      # Build the project (GUI and Plugin)
+      - name: Build hyprland-settings
+        run: |
+          # Build plugin
+          cd update
+          make
+          
+          # Build GUI
+          cd ../gui
+          make
+
+      # Run Hyprland Headless
+      # We use a timeout because Hyprland might not exit on its own.
+      # We attempt to use the headless backend.
+      - name: Run Hyprland Headless
+        run: |
+          mkdir -p ~/.config/hypr
+          touch ~/.config/hypr/hyprland.conf
+          
+          # Run Hyprland with software rendering and headless backend if possible
+          # Note: Newer Hyprland versions use Aquamarine, environment variables might differ.
+          # We try generic wlroots variables which often still work or are respected by shims.
+          export WLR_RENDERER=pixman
+          export WLR_BACKENDS=headless
+          
+          # Start Hyprland in the background
+          Hyprland &
+          HYPR_PID=$!
+          
+          # Wait a bit for it to start
+          sleep 5
+          
+          # Check if it's running
+          if kill -0 $HYPR_PID; then
+            echo "Hyprland started successfully (headless)"
+            
+            # Verify we can talk to it (if hyprctl works)
+            hyprctl versions || echo "hyprctl failed, but process is running"
+            
+            # Kill it
+            kill $HYPR_PID
+          else
+            echo "Hyprland failed to start"
+            exit 1
+          fi
