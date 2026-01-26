@@ -35,6 +35,7 @@ jobs:
           export WLR_BACKENDS=headless
           export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
+          export AQ_NO_MODIFIERS=1
 
           Hyprland --i-am-really-stupid 2>&1 || echo "Hyprland exited with code $?"
 
