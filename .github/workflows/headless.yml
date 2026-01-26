@@ -14,8 +14,6 @@ jobs:
       - name: Update System & Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          # Install development tools and dependencies
-          # hyprland package in Arch usually includes headers and pkg-config files
           pacman -S --noconfirm \
             hyprland
 
@@ -24,31 +22,22 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
-          export HOME=/root
-          mkdir -p $HOME
+          useradd -m user
+          chown -R user:user /home
+          sudo -u user "\
+          export HOME=/home\
+          mkdir -p $HOME\
+
+          mkdir -p /tmp/hyprland-runtime\
+          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime\
+          chmod 700 $XDG_RUNTIME_DIR\
           
-          # Create Hyprland config directory and minimal config
-          mkdir -p $HOME/.config/hypr
-          cat > $HOME/.config/hypr/hyprland.conf << 'EOF'
-          # Minimal headless config
-          monitor=WL-1,1920x1080@60,0x0,1
+          mkdir -p $HOME/.cache/hyprland\
+          mkdir -p /tmp/hypr\
           
-          exec-once = echo "Hyprland started" && sleep 5 && hyprctl dispatch exit
-          EOF
-          
-          # Setup XDG runtime directory
-          mkdir -p /tmp/hyprland-runtime
-          export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
-          chmod 700 $XDG_RUNTIME_DIR
-          
-          # Create cache directory for crash reports
-          mkdir -p $HOME/.cache/hyprland
-          mkdir -p /tmp/hypr
-          
-          # Set headless backend environment variables
-          export WLR_BACKENDS=headless
-          export WLR_LIBINPUT_NO_DEVICES=1
-          export WLR_RENDERER=pixman
-          
-          # Run Hyprland
-          Hyprland 2>&1 || echo "Hyprland exited with code $?"
+          export WLR_BACKENDS=headless\
+          export WLR_LIBINPUT_NO_DEVICES=1\
+          export WLR_RENDERER=pixman\
+
+          Hyprland 2>&1 || echo "Hyprland exited with code $?"\
+          \"
