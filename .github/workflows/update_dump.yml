@@ -18,79 +18,52 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland sway
+          # minimal requirements for headless hyprland + build
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd
 
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Build Plugin
         run: |
+          # The plugin needs to be built with the same headers/flags as Hyprland
+          # Since we installed Hyprland via pacman, we use pkg-config
           echo "Hyprland CFLAGS: $(pkg-config --cflags hyprland)"
           g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 $(pkg-config --cflags hyprland) update/main.cpp -o hyprland_settings_plugin.so
 
       - name: Run Hyprland and Generate Dump
         timeout-minutes: 2
         run: |
-          # Use /tmp for shorter paths (fixes IPC socket path issues)
+          # Use /tmp for shorter paths and permissions
           export XDG_RUNTIME_DIR=/tmp/hypr-runtime
           export HOME=/tmp/hypr-home
-          export XDG_CACHE_HOME=/tmp/hypr-cache
           
-          mkdir -p $XDG_RUNTIME_DIR $HOME $XDG_CACHE_HOME
+          mkdir -p $XDG_RUNTIME_DIR $HOME
           chmod 700 $XDG_RUNTIME_DIR
 
-          # Start Sway (Headless Host)
-          echo "Starting Sway..."
+          # Headless configuration
           export WLR_BACKENDS=headless
           export WLR_LIBINPUT_NO_DEVICES=1
-          
-          # Create a basic config for sway to ensure it starts without error
-          mkdir -p $HOME/.config/sway
-          echo "output * mode 1920x1080" > $HOME/.config/sway/config
-          echo "exec 'echo Sway Started'" >> $HOME/.config/sway/config
-          
-          # Start Sway in background, listening on wayland-1
-          export WAYLAND_DISPLAY=wayland-1
-          sway &
-          
-          # Wait for Sway socket
-          echo "Waiting for Wayland socket..."
-          for i in {1..10}; do
-            if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
-              echo "Socket found!"
-              break
-            fi
-            sleep 1
-          done
-          
-          # Prepare Hyprland Environment
-          # Clean environment for Hyprland (unset WLR backends used for Sway)
-          unset WLR_BACKENDS
-          unset WLR_LIBINPUT_NO_DEVICES
-          
-          # Use pixman for software rendering
-          export WLR_RENDERER=pixman
-          export AQ_TRACE=1
-          
-          # Create config
-          # Get absolute path for plugin since we changed HOME
+          export WLR_RENDERER=gles2 # Explicitly request GLES2 (uses llvmpipe in CI)
+
+          # Hyprland Config
+          # We need to tell Hyprland to load our plugin.
           PLUGIN_PATH=$(pwd)/hyprland_settings_plugin.so
-          
           echo "plugin = $PLUGIN_PATH" > hyprland.conf
-          # No special monitor config needed; it auto-detects the nested window
+          
+          # Run Hyprland
+          # We expect it to start, load the plugin, write the file, and then we kill it (or it stays running until timeout)
+          # We use a shorter timeout since we just need initialization.
           
           echo "Starting Hyprland..."
-          # Run Hyprland nested inside Sway
-          timeout 20s Hyprland --i-am-really-stupid -c hyprland.conf || true
+          timeout 10s Hyprland --config hyprland.conf || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
             echo "Dump file generated successfully."
             cat hyprland_settings_dump.txt | head -n 10
           else
             echo "Error: Dump file was not generated."
-            echo "=== CRASH REPORT (if any) ==="
-            find $XDG_CACHE_HOME -name "hyprlandCrashReport*.txt" -exec cat {} \+
-            echo "============================="
+            ls -R /tmp/hypr-home
             exit 1
           fi
 
