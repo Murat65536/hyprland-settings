@@ -24,6 +24,8 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
+          ls
+          ls /
           mkdir -p /tmp/hyprland-runtime
           export XDG_RUNTIME_DIR=/tmp/hyprland-runtime
           chmod 700 $XDG_RUNTIME_DIR
