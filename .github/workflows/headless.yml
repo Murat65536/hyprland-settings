@@ -37,3 +37,5 @@ jobs:
           export WLR_RENDERER=pixman
 
           Hyprland --i-am-really-stupid 2>&1 || echo "Hyprland exited with code $?"
+
+          cat /home/.cache/hyprland/hyprlandCrashReport*.txt
