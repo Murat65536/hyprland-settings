@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland sway
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -31,37 +31,56 @@ jobs:
       - name: Run Hyprland and Generate Dump
         timeout-minutes: 2
         run: |
-          # Define paths in the current directory
-          export MY_DIR=$(pwd)
-          export HOME=$MY_DIR/tmp_home
-          export XDG_RUNTIME_DIR=$MY_DIR/tmp_runtime
-          export XDG_CACHE_HOME=$MY_DIR/tmp_cache
+          # Use /tmp for shorter paths (fixes IPC socket path issues)
+          export XDG_RUNTIME_DIR=/tmp/hypr-runtime
+          export HOME=/tmp/hypr-home
+          export XDG_CACHE_HOME=/tmp/hypr-cache
           
-          # Create them
-          mkdir -p $HOME
-          mkdir -p $XDG_RUNTIME_DIR
+          mkdir -p $XDG_RUNTIME_DIR $HOME $XDG_CACHE_HOME
           chmod 700 $XDG_RUNTIME_DIR
-          mkdir -p $XDG_CACHE_HOME
-          
-          echo "Directories created:"
-          ls -ld $HOME $XDG_RUNTIME_DIR $XDG_CACHE_HOME
 
-          # Environment for Hyprland Headless (Aquamarine)
-          # AQ_BACKEND=headless tells Hyprland to use its internal headless backend
-          # ensuring no seat/display/GPU is required.
-          export AQ_BACKEND=headless
+          # Start Sway (Headless Host)
+          echo "Starting Sway..."
+          export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
           
-          # Use pixman for software rendering (essential for CI without GPU)
+          # Create a basic config for sway to ensure it starts without error
+          mkdir -p $HOME/.config/sway
+          echo "output * mode 1920x1080" > $HOME/.config/sway/config
+          echo "exec 'echo Sway Started'" >> $HOME/.config/sway/config
+          
+          # Start Sway in background, listening on wayland-1
+          export WAYLAND_DISPLAY=wayland-1
+          sway &
+          
+          # Wait for Sway socket
+          echo "Waiting for Wayland socket..."
+          for i in {1..10}; do
+            if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+              echo "Socket found!"
+              break
+            fi
+            sleep 1
+          done
+          
+          # Prepare Hyprland Environment
+          # Clean environment for Hyprland (unset WLR backends used for Sway)
+          unset WLR_BACKENDS
+          unset WLR_LIBINPUT_NO_DEVICES
+          
+          # Use pixman for software rendering
           export WLR_RENDERER=pixman
           export AQ_TRACE=1
           
           # Create config
-          # We add a dummy monitor config to ensure Hyprland has an output to render to
-          echo "plugin = $MY_DIR/hyprland_settings_plugin.so" > hyprland.conf
-          echo "monitor = HEADLESS-1, 1920x1080, auto, 1" >> hyprland.conf
+          # Get absolute path for plugin since we changed HOME
+          PLUGIN_PATH=$(pwd)/hyprland_settings_plugin.so
+          
+          echo "plugin = $PLUGIN_PATH" > hyprland.conf
+          # No special monitor config needed; it auto-detects the nested window
           
           echo "Starting Hyprland..."
-          # Run Hyprland directly
+          # Run Hyprland nested inside Sway
           timeout 20s Hyprland --i-am-really-stupid -c hyprland.conf || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
