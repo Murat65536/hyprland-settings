@@ -17,56 +17,11 @@ jobs:
           # Install development tools and dependencies
           # hyprland package in Arch usually includes headers and pkg-config files
           pacman -S --noconfirm \
-            base-devel \
-            git \
-            cmake \
-            meson \
-            pkgconf \
-            hyprland \
-            gtkmm-4.0 \
-            wayland \
-            wayland-protocols
+            hyprland
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Hyprland Install
-        run: |
-          hyprctl version || true
-          pkg-config --cflags hyprland
-          ls -la /usr/include/hyprland || echo "Headers not found in standard path"
-
-      - name: Build hyprland-settings
-        run: |
-          # Build plugin
-          # We might need to tell make where to find headers if pkg-config fails or is weird,
-          # but usually standard Arch packages are well-behaved.
-          cd update
-          make
-          
-          # Build GUI
-          cd ../gui
-          make
-
       - name: Run Hyprland Headless
         run: |
-          # Setup environment variables for Headless & Software Rendering
-          export XDG_RUNTIME_DIR=/tmp/hypr
-          export HOME=/tmp/home
-          mkdir -p $XDG_RUNTIME_DIR
-          mkdir -p $HOME/.config/hypr
-          chmod 700 $XDG_RUNTIME_DIR
-
-          # Create a dummy config
-          touch $HOME/.config/hypr/hyprland.conf
-          
-          # Force software rendering (Pixman) and headless backend
-          export WLR_RENDERER=pixman
-          export WLR_BACKENDS=headless
-          export WLR_LIBINPUT_NO_DEVICES=1
-          
-          # Debugging info
-          echo "Starting Hyprland..."
-          
-          # Start Hyprland
           Hyprland --i-am-really-stupid &
