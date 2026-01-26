@@ -36,10 +36,6 @@ jobs:
     
       - name: Run Hyprland headless
         run: |
-          # Start seatd
-          sudo seatd -g video &
-          sleep 1
-        
           # Set environment variables
           mkdir -p /tmp/runtime-dir
           chmod 700 /tmp/runtime-dir
