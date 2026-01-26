@@ -22,8 +22,6 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
-          useradd -m user
-          chown -R user:user /home
           export HOME=/home
           mkdir -p $HOME
 
@@ -38,4 +36,4 @@ jobs:
           export WLR_LIBINPUT_NO_DEVICES=1
           export WLR_RENDERER=pixman
 
-          sudo -u user "Hyprland 2>&1 || echo 'Hyprland exited with code $?'"
+          Hyprland --i-am-really-stupid 2>&1 || echo "Hyprland exited with code $?"
