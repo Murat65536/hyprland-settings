@@ -16,9 +16,13 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
             hyprland \
+            base-devel \
             seatd \
-            xwayland \
-            xvfb
+            xorg-server-xvfb \
+            xorg-xwayland \
+            mesa \
+            pixman
+
 
       - name: Checkout repository
         uses: actions/checkout@v4
