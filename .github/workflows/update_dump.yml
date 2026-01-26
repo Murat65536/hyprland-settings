@@ -32,8 +32,8 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          # Install Hyprland, Weston, and dependencies
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston dbus mesa-utils
+          # Install Hyprland, Wayfire (for headless host), and dependencies
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland wayfire wayfire-plugins-extra dbus mesa-utils
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -53,13 +53,25 @@ jobs:
           mkdir -p $XDG_RUNTIME_DIR $HOME $XDG_CACHE_HOME
           chmod 700 $XDG_RUNTIME_DIR
 
-          # Start Weston (Headless Host)
-          echo "Starting Weston..."
+          # Start Wayfire (Headless Host)
+          # Wayfire often supports more protocols than Weston, satisfying Aquamarine's requirements
+          echo "Starting Wayfire..."
           export WAYLAND_DISPLAY=wayland-1
-          weston --backend=headless-backend.so --socket=$WAYLAND_DISPLAY --idle-time=0 &
-          WESTON_PID=$!
+          export WLR_BACKENDS=headless
+          export WLR_LIBINPUT_NO_DEVICES=1
+          export WLR_RENDERER=pixman # Use software rendering for Wayfire too
           
-          # Wait for Weston
+          # Basic Wayfire config
+          mkdir -p $HOME/.config
+          echo "[core]" > $HOME/.config/wayfire.ini
+          echo "plugins = " >> $HOME/.config/wayfire.ini
+          echo "[output:WL-1]" >> $HOME/.config/wayfire.ini
+          echo "mode = 1920x1080@60" >> $HOME/.config/wayfire.ini
+          
+          wayfire &
+          WAYFIRE_PID=$!
+          
+          # Wait for Wayfire
           echo "Waiting for Wayland socket..."
           for i in {1..10}; do
             if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
@@ -70,36 +82,31 @@ jobs:
           done
           
           if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
-            echo "Failed to start Weston"
+            echo "Failed to start Wayfire"
             exit 1
           fi
 
           # Prepare Hyprland Environment
-          # We rely on Hyprland auto-detecting the Wayland backend via WAYLAND_DISPLAY
-          # We force software rendering via Mesa variables
+          # Unset backend variables so Hyprland detects the Wayland session
+          unset WLR_BACKENDS
+          unset WLR_LIBINPUT_NO_DEVICES
+          
+          # Force software rendering for Hyprland (nested)
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
           export AQ_TRACE=1
           
-          # Debugging: Check OpenGL status
-          # We use glxinfo (part of mesa-utils) but it might not be installed. 
-          # We'll skip if not present, but it's good practice to have it.
-          if command -v glxinfo &> /dev/null; then
-              glxinfo -B || echo "glxinfo failed"
-          fi
-
           # Hyprland Config
           PLUGIN_PATH=$(pwd)/hyprland_settings_plugin.so
           echo "plugin = $PLUGIN_PATH" > hyprland.conf
           echo "misc:disable_hyprland_logo = true" >> hyprland.conf
           
           echo "Starting Hyprland..."
-          # Run Hyprland nested inside Weston
-          # No explicit backend flag - let it detect WAYLAND_DISPLAY
+          # Run Hyprland nested inside Wayfire
           timeout 15s Hyprland --i-am-really-stupid --config hyprland.conf || true
           
           # Cleanup
-          kill $WESTON_PID || true
+          kill $WAYFIRE_PID || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
             echo "Dump file generated successfully."
