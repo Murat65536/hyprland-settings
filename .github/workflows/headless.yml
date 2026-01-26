@@ -17,7 +17,6 @@ jobs:
           pacman -S --noconfirm \
             hyprland \
             base-devel \
-            seatd \
             xorg-server-xvfb \
             xorg-xwayland \
             mesa \
@@ -45,9 +44,10 @@ jobs:
           mkdir -p /tmp/runtime-dir
           chmod 700 /tmp/runtime-dir
           export XDG_RUNTIME_DIR=/tmp/runtime-dir
-          export LIBSEAT_BACKEND=seatd
+          export LIBSEAT_BACKEND=noop
           export WLR_BACKENDS=headless
           export WLR_RENDERER=pixman
+          export WLR_RENDERER_ALLOW_SOFTWARE=1
           export AQ_NO_MODIFIERS=1
           export WLR_NO_HARDWARE_CURSORS=1
           export HYPRLAND_NO_RT=1
