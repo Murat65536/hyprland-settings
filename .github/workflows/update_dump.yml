@@ -18,8 +18,22 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          # Install Hyprland, Weston (for headless host), and dependencies
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston
+          # Install Hyprland and Xvfb for headless X11 server
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-server-xvfb
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build Plugin
+        run: |
+          echo "Hyprland CFLAGS: $(pkg-config --cflags hyprland)"
+          g++ -shared -fPIC --no-gnu-unique -std=c++23 -O2 $(pkg-config --cflags hyprland) update/main.cpp -o hyprland_settings_plugin.so
+
+      - name: Install Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          # Install Hyprland, Weston, and dependencies
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston dbus
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -39,14 +53,8 @@ jobs:
           chmod 700 $XDG_RUNTIME_DIR
 
           # Start Weston (Headless Host)
-          # Weston's headless backend is often more reliable in CI than Sway
           echo "Starting Weston..."
           export WAYLAND_DISPLAY=wayland-1
-          
-          # Start Weston in the background
-          # --backend=headless-backend.so: Use headless backend
-          # --socket=wayland-1: Listen on this socket
-          # --idle-time=0: Disable screen locking/sleeping
           weston --backend=headless-backend.so --socket=$WAYLAND_DISPLAY --idle-time=0 &
           WESTON_PID=$!
           
@@ -62,18 +70,16 @@ jobs:
           
           if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
             echo "Failed to start Weston"
-            # Print Weston logs if possible (it usually logs to stderr)
             exit 1
           fi
 
           # Prepare Hyprland
-          # Unset variables that might conflict (Hyprland auto-detects Wayland backend when WAYLAND_DISPLAY is set)
-          unset WLR_BACKENDS
-          unset WLR_LIBINPUT_NO_DEVICES
-          
-          # Force software rendering for Hyprland (nested)
-          export WLR_RENDERER=gles2
-          export WLR_RENDERER_ALLOW_SOFTWARE=1
+          # AQ_BACKEND=wayland: Force Aquamarine to use the Wayland backend (nested in Weston)
+          export AQ_BACKEND=wayland
+          export WAYLAND_DISPLAY=wayland-1
+          export WLR_RENDERER=pixman
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export GALLIUM_DRIVER=llvmpipe
           export AQ_TRACE=1
           
           # Hyprland Config
@@ -82,8 +88,9 @@ jobs:
           echo "misc:disable_hyprland_logo = true" >> hyprland.conf
           
           echo "Starting Hyprland..."
-          # Run Hyprland nested
-          timeout 10s Hyprland --config hyprland.conf || true
+          # Run Hyprland nested inside Weston
+          # dbus-run-session: Sometimes required for stable session initialization
+          timeout 15s dbus-run-session Hyprland --i-am-really-stupid --config hyprland.conf || true
           
           # Cleanup
           kill $WESTON_PID || true
