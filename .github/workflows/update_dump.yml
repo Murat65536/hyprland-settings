@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland weston
+          pacman -S --noconfirm base-devel cmake ninja git hyprland wayland-protocols pkg-config mesa vulkan-swrast llvm libglvnd seatd xorg-xwayland
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -46,32 +46,22 @@ jobs:
           echo "Directories created:"
           ls -ld $HOME $XDG_RUNTIME_DIR $XDG_CACHE_HOME
 
-          # Start Weston (Headless Host)
-          # We use the headless-backend for weston itself
-          echo "Starting Weston..."
-          weston --backend=headless-backend.so --socket=wayland-1 --idle-time=0 &
+          # Environment for Hyprland Headless (Aquamarine)
+          # AQ_BACKEND=headless tells Hyprland to use its internal headless backend
+          # ensuring no seat/display/GPU is required.
+          export AQ_BACKEND=headless
           
-          # Wait for Weston socket to appear
-          echo "Waiting for Wayland socket..."
-          export WAYLAND_DISPLAY=wayland-1
-          for i in {1..10}; do
-            if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
-              echo "Socket found!"
-              break
-            fi
-            sleep 1
-          done
-          
-          # Environment for Hyprland
-          # Use pixman for software rendering reliability in CI
+          # Use pixman for software rendering (essential for CI without GPU)
           export WLR_RENDERER=pixman
           export AQ_TRACE=1
           
           # Create config
+          # We add a dummy monitor config to ensure Hyprland has an output to render to
           echo "plugin = $MY_DIR/hyprland_settings_plugin.so" > hyprland.conf
+          echo "monitor = HEADLESS-1, 1920x1080, auto, 1" >> hyprland.conf
           
           echo "Starting Hyprland..."
-          # Run Hyprland nested inside Weston
+          # Run Hyprland directly
           timeout 20s Hyprland --i-am-really-stupid -c hyprland.conf || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
