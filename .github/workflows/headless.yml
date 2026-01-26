@@ -24,4 +24,5 @@ jobs:
 
       - name: Run Hyprland Headless
         run: |
+          export XDG_RUNTIME_DIR=/tmp
           Hyprland --i-am-really-stupid &
