@@ -56,7 +56,7 @@ jobs:
           # We use a shorter timeout since we just need initialization.
           
           echo "Starting Hyprland..."
-          timeout 10s Hyprland --config hyprland.conf || true
+          timeout 10s Hyprland --i-am-really-stupid --config hyprland.conf || true
           
           if [ -f "hyprland_settings_dump.txt" ]; then
             echo "Dump file generated successfully."
