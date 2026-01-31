@@ -1,0 +1,63 @@
+window { 
+  font-size: 11pt; 
+}
+
+headerbar { 
+  padding: 0 6px; 
+  min-height: 46px; 
+}
+
+.sidebar { 
+  background-color: alpha(@window_fg_color, 0.05); 
+  border-right: 1px solid alpha(@window_fg_color, 0.1); 
+}
+
+.sidebar row { 
+  padding: 8px 12px; 
+  border-radius: 6px; 
+  margin: 2px 8px; 
+}
+
+.sidebar row:selected { 
+  background-color: @accent_bg_color; 
+  color: @accent_fg_color; 
+}
+
+columnview { 
+  background: transparent; 
+}
+
+columnview row { 
+  padding: 8px; 
+  border-bottom: 1px solid alpha(@window_fg_color, 0.05); 
+}
+
+columnview row:selected { 
+  background-color: alpha(@accent_bg_color, 0.1); 
+  color: @window_fg_color; 
+}
+
+entry { 
+  padding: 6px; 
+  border-radius: 6px; 
+}
+
+button { 
+  padding: 4px 12px; 
+  border-radius: 6px; 
+}
+
+frame { 
+  border-radius: 12px; 
+  border: 1px solid alpha(@window_fg_color, 0.1); 
+  padding: 12px; 
+}
+
+.data-table {
+  background: transparent;
+}
+
+.sidebar-scroll {
+  border: none;
+  box-shadow: none;
+}
