@@ -44,17 +44,19 @@ public:
 protected:
     void on_button_refresh();
     void on_hyprland_button_clicked();
+    void on_scroll_changed();
 
     Gtk::HeaderBar m_HeaderBar;
     Gtk::Box m_MainVBox;
-    Gtk::Stack m_MainStack;  // Main stack for switching between menu and content
-    Gtk::Box m_MenuBox;      // Box for the main menu
-    Gtk::Box m_ContentBox;   // Box for the main content
+    Gtk::Stack m_MainStack;
+    Gtk::Box m_MenuBox;
+    Gtk::Box m_ContentBox;
     Gtk::Box m_HBox;
     Gtk::TreeView m_TreeView;
-    Gtk::Stack m_Stack;
+    Gtk::ScrolledWindow m_ContentScroll;
+    Gtk::Box m_ContentVBox;
     Gtk::Button m_Button_Refresh;
-    Gtk::Button m_Button_Hyprland;  // Hyprland button for the main menu
+    Gtk::Button m_Button_Hyprland;
 
     // TreeModel for sidebar
     class SectionColumns : public Gtk::TreeModel::ColumnRecord {
@@ -135,6 +137,12 @@ protected:
     SectionNode m_RootSection;
     std::map<std::string, Gtk::TreeModel::iterator> m_SectionIters;
 
+    // Track widgets for scrolling
+    std::map<std::string, Gtk::Widget*> m_SectionWidgets;
+    std::vector<std::pair<std::string, Gtk::Widget*>> m_OrderedSections;
+    bool m_scrolling_programmatically = false;
+    bool m_selecting_programmatically = false;
+
     void setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
@@ -174,7 +182,8 @@ ConfigWindow::ConfigWindow()
 : m_MainVBox(Gtk::Orientation::VERTICAL),
   m_MenuBox(Gtk::Orientation::VERTICAL),
   m_ContentBox(Gtk::Orientation::VERTICAL),
-  m_HBox(Gtk::Orientation::HORIZONTAL)
+  m_HBox(Gtk::Orientation::HORIZONTAL),
+  m_ContentVBox(Gtk::Orientation::VERTICAL)
 {
     set_title("Hyprland Settings");
     set_default_size(950, 650);
@@ -224,8 +233,8 @@ ConfigWindow::ConfigWindow()
     // Add menu to main stack
     m_MainStack.add(m_MenuBox, "menu", "Main Menu");
 
-    // Setup content area (existing functionality)
-    // HBox for Sidebar + Stack
+    // Setup content area
+    // HBox for Sidebar + Content
     m_HBox.set_expand(true);
     m_ContentBox.append(m_HBox);
 
@@ -246,11 +255,18 @@ ConfigWindow::ConfigWindow()
     sidebarScroll->add_css_class("sidebar-scroll");
     m_HBox.append(*sidebarScroll);
 
-    // Stack
-    m_Stack.set_expand(true);
-    m_Stack.set_transition_type(Gtk::StackTransitionType::CROSSFADE);
-    m_Stack.set_margin(16);
-    m_HBox.append(m_Stack);
+    // Content Scroll Area
+    m_ContentScroll.set_expand(true);
+    m_ContentScroll.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+    m_ContentScroll.set_child(m_ContentVBox);
+    m_ContentVBox.set_margin(20);
+    m_ContentVBox.set_spacing(40); // Spacing between sections
+
+    // Scroll listener
+    auto vAdj = m_ContentScroll.get_vadjustment();
+    vAdj->signal_value_changed().connect(sigc::mem_fun(*this, &ConfigWindow::on_scroll_changed));
+
+    m_HBox.append(m_ContentScroll);
 
     // Add content box to main stack
     m_MainStack.add(m_ContentBox, "content", "Settings");
@@ -279,6 +295,17 @@ void ConfigWindow::create_section_view(const std::string& sectionPath) {
     auto listStore = Gio::ListStore<ConfigItem>::create();
     m_SectionStores[sectionPath] = listStore;
 
+    // Create Section Container
+    auto sectionBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+    sectionBox->set_spacing(10);
+    
+    // Header
+    std::string title = sectionPath;
+    auto label = Gtk::make_managed<Gtk::Label>(title);
+    label->add_css_class("section-title");
+    label->set_halign(Gtk::Align::START);
+    sectionBox->append(*label);
+
     auto selectionModel = Gtk::SingleSelection::create(listStore);
     auto columnView = Gtk::make_managed<Gtk::ColumnView>();
     columnView->set_model(selectionModel);
@@ -295,24 +322,31 @@ void ConfigWindow::create_section_view(const std::string& sectionPath) {
     auto factory_value = Gtk::SignalListItemFactory::create();
     factory_value->signal_setup().connect(sigc::mem_fun(*this, &ConfigWindow::setup_column_edit));
     factory_value->signal_bind().connect(sigc::mem_fun(*this, &ConfigWindow::bind_value));
-    auto col_val = Gtk::ColumnViewColumn::create("Value (Editable)", factory_value);
+    auto col_val = Gtk::ColumnViewColumn::create("Value", factory_value);
     col_val->set_expand(true);
     columnView->append_column(col_val);
 
-    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
-    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    scrolledWindow->set_child(*columnView);
+    // Add ColumnView directly to box (no internal scroll)
+    sectionBox->append(*columnView);
     
-    m_Stack.add(*scrolledWindow, sectionPath, sectionPath);
+    m_ContentVBox.append(*sectionBox);
+    m_SectionWidgets[sectionPath] = sectionBox;
+    m_OrderedSections.push_back({sectionPath, sectionBox});
 }
 
 void ConfigWindow::create_executing_view() {
+    std::string sectionPath = "__executing__";
     auto mainBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
     mainBox->set_spacing(10);
-    mainBox->set_margin(10);
+
+    // Header
+    auto label = Gtk::make_managed<Gtk::Label>("Executing (Runtime)");
+    label->add_css_class("section-title");
+    label->set_halign(Gtk::Align::START);
+    mainBox->append(*label);
 
     // Add new keyword section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Exec Command (Runtime)");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Exec Command");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -369,22 +403,26 @@ void ConfigWindow::create_executing_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
-    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    scrolledWindow->set_child(*columnView);
-    scrolledWindow->set_vexpand(true);
-    mainBox->append(*scrolledWindow);
+    mainBox->append(*columnView);
 
-    m_Stack.add(*mainBox, "__executing__", "Executing");
+    m_ContentVBox.append(*mainBox);
+    m_SectionWidgets[sectionPath] = mainBox;
+    m_OrderedSections.push_back({sectionPath, mainBox});
 }
 
 void ConfigWindow::create_env_vars_view() {
+    std::string sectionPath = "__env_vars__";
     auto mainBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
     mainBox->set_spacing(10);
-    mainBox->set_margin(10);
+
+    // Header
+    auto label = Gtk::make_managed<Gtk::Label>("Environment Variables");
+    label->add_css_class("section-title");
+    label->set_halign(Gtk::Align::START);
+    mainBox->append(*label);
 
     // Add new environment variable section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Environment Variable (Runtime)");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Add New Environment Variable");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -449,22 +487,26 @@ void ConfigWindow::create_env_vars_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
-    scrolledWindow->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    scrolledWindow->set_child(*columnView);
-    scrolledWindow->set_vexpand(true);
-    mainBox->append(*scrolledWindow);
+    mainBox->append(*columnView);
 
-    m_Stack.add(*mainBox, "__env_vars__", "Environment Variables");
+    m_ContentVBox.append(*mainBox);
+    m_SectionWidgets[sectionPath] = mainBox;
+    m_OrderedSections.push_back({sectionPath, mainBox});
 }
 
 void ConfigWindow::create_device_configs_view() {
+    std::string sectionPath = "__device_configs__";
     auto mainBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
     mainBox->set_spacing(10);
-    mainBox->set_margin(10);
+
+    // Header
+    auto label = Gtk::make_managed<Gtk::Label>("Per-device Input Configs");
+    label->add_css_class("section-title");
+    label->set_halign(Gtk::Align::START);
+    mainBox->append(*label);
 
     // Add new device config section
-    auto addFrame = Gtk::make_managed<Gtk::Frame>("Set Per-Device Config (Runtime)");
+    auto addFrame = Gtk::make_managed<Gtk::Frame>("Set Per-Device Config");
     auto addBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     addBox->set_spacing(5);
     addBox->set_margin(10);
@@ -551,13 +593,11 @@ void ConfigWindow::create_device_configs_view() {
     col_value->set_expand(true);
     columnView->append_column(col_value);
 
-    auto scrolledWindow = Gtk::make_managed<Gtk::ScrolledWindow>();
-    scrolledWindow->set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-    scrolledWindow->set_child(*columnView);
-    scrolledWindow->set_vexpand(true);
-    mainBox->append(*scrolledWindow);
+    mainBox->append(*columnView);
 
-    m_Stack.add(*mainBox, "__device_configs__", "Per-device Input Configs");
+    m_ContentVBox.append(*mainBox);
+    m_SectionWidgets[sectionPath] = mainBox;
+    m_OrderedSections.push_back({sectionPath, mainBox});
 }
 
 void ConfigWindow::setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -634,13 +674,69 @@ void ConfigWindow::bind_device_value(const Glib::RefPtr<Gtk::ListItem>& list_ite
 }
 
 void ConfigWindow::on_section_selected() {
+    if (m_selecting_programmatically) return;
+
     auto iter = m_TreeView.get_selection()->get_selected();
     if (iter) {
         Glib::ustring fullPath = (*iter)[m_SectionColumns.m_col_full_path];
-        // Only try to set visible child if it exists in the stack
-        auto child = m_Stack.get_child_by_name(fullPath.raw());
-        if (child) {
-            m_Stack.set_visible_child(*child);
+        // Scroll to widget if exists
+        auto it = m_SectionWidgets.find(fullPath.raw());
+        if (it != m_SectionWidgets.end()) {
+            Gtk::Widget* target = it->second;
+            
+            // To be precise, we need the position relative to m_ContentVBox
+            // Since they are direct children, get_allocation should give us the right y (if already allocated)
+            // But we need to use translate_coordinates to be safe if hierarchy changes
+            double x, y;
+            if (target->translate_coordinates(m_ContentVBox, 0, 0, x, y)) {
+                m_scrolling_programmatically = true;
+                m_ContentScroll.get_vadjustment()->set_value(y);
+                
+                // Process events to prevent immediate feedback loop if necessary
+                // but m_scrolling_programmatically should handle it
+                
+                // Reset flag after a short delay or immediately?
+                // The set_value signal is synchronous.
+                m_scrolling_programmatically = false; 
+            }
+        }
+    }
+}
+
+void ConfigWindow::on_scroll_changed() {
+    if (m_scrolling_programmatically || m_OrderedSections.empty()) return;
+
+    double scrollY = m_ContentScroll.get_vadjustment()->get_value();
+    
+    // Find the section currently at the top
+    std::string currentPath;
+    
+    for (auto& pair : m_OrderedSections) {
+        Gtk::Widget* widget = pair.second;
+        double x, y;
+        if (widget->translate_coordinates(m_ContentVBox, 0, 0, x, y)) {
+            double height = widget->get_height();
+            // Check if this widget contains the scrollY point (with some tolerance/header offset)
+            // Or simply find the last one that started before scrollY + offset
+            
+            // If top of widget is visible or above view top, and bottom is below view top
+            if (y <= scrollY + 100 && (y + height) > scrollY + 50) {
+                 currentPath = pair.first;
+                 // Don't break immediately, we might want the "most visible" one?
+                 // But first one intersecting top is standard spy scroll behavior.
+                 break; 
+            }
+        }
+    }
+
+    if (!currentPath.empty()) {
+        auto it = m_SectionIters.find(currentPath);
+        if (it != m_SectionIters.end()) {
+            m_selecting_programmatically = true;
+            m_TreeView.get_selection()->select(it->second);
+            // Also ensure the treeview scrolls to show the selected item
+            m_TreeView.scroll_to_row(m_SectionTreeStore->get_path(it->second));
+            m_selecting_programmatically = false;
         }
     }
 }
@@ -651,38 +747,6 @@ std::string ConfigWindow::get_section_path(const std::string& optionName) {
         return optionName.substr(0, pos);
     }
     return "";  // Root level option
-}
-
-void ConfigWindow::add_section_to_tree(const std::string& sectionPath) {
-    if (sectionPath.empty() || m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
-        return;  // Already exists or empty
-    }
-    
-    auto parts = split_path(sectionPath, ':');
-    std::string currentPath;
-    Gtk::TreeModel::iterator parentIter;
-    
-    for (size_t i = 0; i < parts.size(); ++i) {
-        if (i > 0) currentPath += ":";
-        currentPath += parts[i];
-        
-        // Check if this path already exists in tree
-        if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
-            Gtk::TreeModel::iterator newIter;
-            if (parentIter) {
-                newIter = m_SectionTreeStore->append(parentIter->children());
-            } else {
-                newIter = m_SectionTreeStore->append();
-            }
-            (*newIter)[m_SectionColumns.m_col_name] = parts[i];
-            (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
-            m_SectionIters[currentPath] = newIter;
-            
-            // Create view for this section
-            create_section_view(currentPath);
-        }
-        parentIter = m_SectionIters[currentPath];
-    }
 }
 
 void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -751,13 +815,8 @@ std::string readString(int fd) {
 }
 
 void ConfigWindow::send_update(const std::string& name, const std::string& value) {
-    // 1. Persist to file
     const char* home = std::getenv("HOME");
     std::string configPath = home ? std::string(home) + "/.config/hypr/hyprland.conf" : "hyprland.conf";
-    
-    // Check if a specific settings file is preferred, otherwise use main config
-    // For safety/convention, we might want to check if the file exists, 
-    // but ConfigIO handles open failure.
     
     if (ConfigIO::updateOption(configPath, name, value)) {
         std::cout << "Updated config file: " << name << " = " << value << std::endl;
@@ -765,16 +824,12 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
         std::cerr << "Failed to update config file for: " << name << std::endl;
     }
 
-    // 2. Apply runtime (hyprctl)
-    // Escape quotes in value
     std::string escapedValue;
     for (char c : value) {
         if (c == '"') escapedValue += "\\\"";
         else escapedValue += c;
     }
     
-    // For normal options (e.g. general:border_size), hyprctl keyword works
-    // Syntax: hyprctl keyword section:key value
     std::string cmd = "hyprctl keyword " + name + " \"" + escapedValue + "\"";
     std::cout << "Executing: " << cmd << std::endl;
     int ret = std::system(cmd.c_str());
@@ -784,7 +839,6 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
 }
 
 void ConfigWindow::send_keyword_add(const std::string& type, const std::string& value) {
-    // Escape quotes in value
     std::string escapedValue;
     for (char c : value) {
         if (c == '"') escapedValue += "\\\"";
@@ -800,14 +854,12 @@ void ConfigWindow::send_keyword_add(const std::string& type, const std::string& 
 }
 
 void ConfigWindow::send_device_config_add(const std::string& deviceName, const std::string& option, const std::string& value) {
-    // Escape quotes
     std::string escapedValue;
     for (char c : value) {
         if (c == '"') escapedValue += "\\\"";
         else escapedValue += c;
     }
     
-    // hyprctl keyword device:name:option value
     std::string cmd = "hyprctl keyword device:" + deviceName + ":" + option + " \"" + escapedValue + "\"";
     std::cout << "Executing: " << cmd << std::endl;
     int ret = std::system(cmd.c_str());
@@ -820,12 +872,10 @@ void ConfigWindow::load_keywords() {
     m_KeywordStore->remove_all();
     m_ExecutingStore->remove_all();
     m_EnvVarStore->remove_all();
-    // Cannot list keywords via hyprctl easily.
 }
 
 void ConfigWindow::load_device_configs() {
     m_DeviceConfigStore->remove_all();
-    // Cannot list device configs via hyprctl easily.
 }
 
 void ConfigWindow::load_available_devices() {
@@ -852,6 +902,9 @@ void ConfigWindow::load_available_devices() {
 }
 
 void ConfigWindow::load_data() {
+    // Unselect to avoid signals during clear
+    m_TreeView.get_selection()->unselect_all();
+
     // Clear existing stores and tree
     for (auto& kv : m_SectionStores) {
         kv.second->remove_all();
@@ -859,58 +912,65 @@ void ConfigWindow::load_data() {
     m_SectionTreeStore->clear();
     m_SectionStores.clear();
     m_SectionIters.clear();
+    m_SectionWidgets.clear();
+    m_OrderedSections.clear();
 
-    // Remove all children from stack
-    while (auto child = m_Stack.get_first_child()) {
-        m_Stack.remove(*child);
+    // Remove all children from content box
+    while (auto child = m_ContentVBox.get_first_child()) {
+        m_ContentVBox.remove(*child);
     }
 
-    // Load available devices first (needed for device configs view)
+    // Load available devices
     load_available_devices();
 
-    // Create Variables parent section (Placeholder)
+    // Create Variables parent section
     auto variablesIter = m_SectionTreeStore->append();
     (*variablesIter)[m_SectionColumns.m_col_name] = "Variables";
     (*variablesIter)[m_SectionColumns.m_col_full_path] = "__variables__";
     m_SectionIters["__variables__"] = variablesIter;
 
-    // Add Keywords parent section to the sidebar (Always available)
+    // Add Keywords parent section
     auto keywordsIter = m_SectionTreeStore->append();
     (*keywordsIter)[m_SectionColumns.m_col_name] = "Keywords";
     (*keywordsIter)[m_SectionColumns.m_col_full_path] = "__keywords_parent__";
     m_SectionIters["__keywords_parent__"] = keywordsIter;
 
-    // Add "Executing" subsection under Keywords
+    // Add "Executing" subsection
     auto executingIter = m_SectionTreeStore->append(keywordsIter->children());
     (*executingIter)[m_SectionColumns.m_col_name] = "Executing";
     (*executingIter)[m_SectionColumns.m_col_full_path] = "__executing__";
     m_SectionIters["__executing__"] = executingIter;
 
-    // Add "Per-device Input Configs" subsection under Keywords
+    // Add "Per-device Input Configs" subsection
     auto deviceConfigsIter = m_SectionTreeStore->append(keywordsIter->children());
     (*deviceConfigsIter)[m_SectionColumns.m_col_name] = "Per-device Input Configs";
     (*deviceConfigsIter)[m_SectionColumns.m_col_full_path] = "__device_configs__";
     m_SectionIters["__device_configs__"] = deviceConfigsIter;
 
-    // Add "Environment Variables" subsection under Keywords
+    // Add "Environment Variables" subsection
     auto envVarsIter = m_SectionTreeStore->append(keywordsIter->children());
     (*envVarsIter)[m_SectionColumns.m_col_name] = "Environment Variables";
     (*envVarsIter)[m_SectionColumns.m_col_full_path] = "__env_vars__";
     m_SectionIters["__env_vars__"] = envVarsIter;
 
-    // Create and populate views
-    create_executing_view();
-    create_device_configs_view();
-    create_env_vars_view();
-    load_keywords();
-    load_device_configs();
+    // --- Headers and Views Creation Order ---
 
-    // Expand Keywords section
-    m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
+    // 1. Variables Header
+    auto varsHeader = Gtk::make_managed<Gtk::Label>("Variables");
+    varsHeader->add_css_class("section-title"); // Use existing style or create a bigger one?
+    // Make it look like a main category header
+    varsHeader->set_margin_top(20);
+    varsHeader->set_margin_bottom(10);
+    varsHeader->set_halign(Gtk::Align::START);
+    // Maybe make it larger via attributes if CSS isn't enough, but CSS is better.
+    // Reusing section-title is fine, or add a new class.
+    varsHeader->add_css_class("main-category-title"); 
+    m_ContentVBox.append(*varsHeader);
 
-    // Get config descriptions from hyprctl descriptions
+    // Get config descriptions
     std::set<std::string> allSections;
     std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
+    bool hasRootOptions = false;
 
     FILE* pipe = popen("hyprctl descriptions -j", "r");
     if (pipe) {
@@ -921,7 +981,6 @@ void ConfigWindow::load_data() {
         }
         pclose(pipe);
 
-        // Parse JSON using json-glib
         GError* error = nullptr;
         JsonParser* parser = json_parser_new();
         
@@ -938,14 +997,11 @@ void ConfigWindow::load_data() {
                     const char* desc = json_object_get_string_member(obj, "description");
                     
                     if (name && desc) {
-                        // Get current value from data object
                         std::string currentVal;
                         bool isSetByUser = false;
                         
                         if (json_object_has_member(obj, "data")) {
                             JsonObject* dataObj = json_object_get_object_member(obj, "data");
-                            
-                            // Try to get "current" field first, then fall back to "value"
                             if (json_object_has_member(dataObj, "current")) {
                                 JsonNode* currentNode = json_object_get_member(dataObj, "current");
                                 if (JSON_NODE_HOLDS_VALUE(currentNode)) {
@@ -975,8 +1031,6 @@ void ConfigWindow::load_data() {
                                     }
                                 }
                             }
-                            
-                            // Check if explicitly set
                             if (json_object_has_member(dataObj, "explicit")) {
                                 isSetByUser = json_object_get_boolean_member(dataObj, "explicit");
                             }
@@ -985,23 +1039,22 @@ void ConfigWindow::load_data() {
                         std::string sectionPath = get_section_path(name);
                         if (!sectionPath.empty()) {
                             allSections.insert(sectionPath);
+                        } else {
+                            hasRootOptions = true;
                         }
                         allOptions.emplace_back(name, currentVal, desc, isSetByUser);
                     }
                 }
             }
-        } else {
-            if (error) {
-                std::cerr << "JSON parsing error: " << error->message << std::endl;
-                g_error_free(error);
-            }
         }
-        
         g_object_unref(parser);
     }
 
-    // Create all section views under Variables in the tree
+    // Build the tree nodes (but don't create views yet)
+    // Create sections in tree
     for (const auto& sectionPath : allSections) {
+        if (sectionPath.empty()) continue; // Handle root separately or it might be handled here?
+
         auto parts = split_path(sectionPath, ':');
         std::string currentPath;
         Gtk::TreeModel::iterator parentIter = variablesIter;
@@ -1015,27 +1068,54 @@ void ConfigWindow::load_data() {
                 (*newIter)[m_SectionColumns.m_col_name] = parts[i];
                 (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
                 m_SectionIters[currentPath] = newIter;
-                create_section_view(currentPath);
             }
             parentIter = m_SectionIters[currentPath];
         }
     }
+    
+    // Root level section node
+    if (hasRootOptions && m_SectionIters.find("") == m_SectionIters.end()) {
+        auto iter = m_SectionTreeStore->append(variablesIter->children());
+        (*iter)[m_SectionColumns.m_col_name] = "(root)";
+        (*iter)[m_SectionColumns.m_col_full_path] = "";
+        m_SectionIters[""] = iter;
+    }
 
-    // Second pass: add options to their sections
+    // 2. Create Views for Variables (root and others)
+    // Create root view first if it exists or we just want it at top
+    if (hasRootOptions && m_SectionWidgets.find("") == m_SectionWidgets.end()) {
+         create_section_view("");
+    }
+
+    for (const auto& sectionPath : allSections) {
+        if (sectionPath.empty()) continue; // Already created root
+        if (m_SectionWidgets.find(sectionPath) == m_SectionWidgets.end()) {
+            create_section_view(sectionPath);
+        }
+    }
+
+    // 3. Keywords Header
+    auto kwHeader = Gtk::make_managed<Gtk::Label>("Keywords");
+    kwHeader->add_css_class("main-category-title");
+    kwHeader->set_margin_top(40); // More spacing before this block
+    kwHeader->set_margin_bottom(10);
+    kwHeader->set_halign(Gtk::Align::START);
+    m_ContentVBox.append(*kwHeader);
+
+    // 4. Create Views for Keywords
+    create_executing_view();
+    create_device_configs_view();
+    create_env_vars_view();
+    
+    load_keywords();
+    load_device_configs();
+
+    // Expand Keywords section
+    m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
+
+    // Add options to stores
     for (const auto& [name, valStr, desc, setByUser] : allOptions) {
         std::string sectionPath = get_section_path(name);
-
-        if (sectionPath.empty()) {
-            // Root level option - add under Variables
-            if (m_SectionStores.find("") == m_SectionStores.end()) {
-                auto iter = m_SectionTreeStore->append(variablesIter->children());
-                (*iter)[m_SectionColumns.m_col_name] = "(root)";
-                (*iter)[m_SectionColumns.m_col_full_path] = "";
-                m_SectionIters[""] = iter;
-                create_section_view("");
-            }
-        }
-
         if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
             m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
         }
