@@ -13,6 +13,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <json-glib/json-glib.h>
+#include <filesystem>
 #include "config_io.hpp"
 
 // Helper to split a string by delimiter
@@ -208,8 +209,20 @@ ConfigWindow::ConfigWindow()
     set_child(m_MainVBox);
 
     auto css_provider = Gtk::CssProvider::create();
-    css_provider->load_from_path("style.css");
-    Gtk::StyleContext::add_provider_for_display(Gdk::Display::get_default(), css_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    if (std::filesystem::exists("style.css")) {
+        css_provider->load_from_path("style.css");
+    } else if (std::filesystem::exists("src/style.css")) {
+        css_provider->load_from_path("src/style.css");
+    } else {
+        std::cerr << "Warning: style.css not found! UI might look unstyled." << std::endl;
+    }
+    
+    auto display = Gdk::Display::get_default();
+    if (display) {
+        Gtk::StyleContext::add_provider_for_display(display, css_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    } else {
+        std::cerr << "Warning: No default display found for CSS!" << std::endl;
+    }
 
     // Initialize main stack
     m_MainStack.set_expand(true);
@@ -753,6 +766,48 @@ void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_ite
     auto label = Gtk::make_managed<Gtk::Label>();
     label->set_halign(Gtk::Align::START);
     label->set_ellipsize(Pango::EllipsizeMode::END);
+    
+    // Add click gesture for description
+    auto gesture = Gtk::GestureClick::create();
+    gesture->set_button(GDK_BUTTON_PRIMARY);
+    gesture->signal_released().connect([this, list_item](int, double, double) {
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item && !item->m_desc.empty()) {
+            auto dialog = new Gtk::Dialog();
+            dialog->set_transient_for(*this);
+            dialog->set_modal(true);
+            dialog->set_title("Description");
+            
+            auto content_area = dialog->get_content_area();
+            content_area->set_margin(20);
+            content_area->set_spacing(10);
+
+            auto titleLabel = Gtk::make_managed<Gtk::Label>(item->m_short_name);
+            titleLabel->add_css_class("dialog-title");
+            titleLabel->set_halign(Gtk::Align::START);
+            content_area->append(*titleLabel);
+
+            auto label = Gtk::make_managed<Gtk::Label>(item->m_desc);
+            label->set_wrap(true);
+            label->set_max_width_chars(60);
+            label->set_halign(Gtk::Align::START);
+            content_area->append(*label);
+            
+            dialog->add_button("Close", Gtk::ResponseType::CLOSE);
+            dialog->signal_response().connect([dialog](int) {
+                dialog->hide();
+                Glib::signal_idle().connect_once([dialog]() {
+                    delete dialog;
+                });
+            });
+            dialog->show();
+        }
+    });
+    label->add_controller(gesture);
+    
+    // Set cursor to pointer to indicate clickability
+    label->set_cursor(Gdk::Cursor::create("pointer"));
+
     list_item->set_child(*label);
 }
 
@@ -781,7 +836,6 @@ void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto label = dynamic_cast<Gtk::Label*>(list_item->get_child());
     if (item && label) {
         label->set_text(item->m_short_name);
-        label->set_tooltip_text(item->m_desc);
     }
 }
 
