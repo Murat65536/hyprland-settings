@@ -1,17 +1,18 @@
 #include <gtkmm.h>
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <vector>
 #include <sstream>
 #include <map>
-#include <set>
 #include <regex>
 #include <cstdlib>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <libgen.h>
+#include <limits.h>
+#include <json-glib/json-glib.h>
 #include "config_io.hpp"
 
 // Helper to split a string by delimiter
@@ -42,13 +43,18 @@ public:
 
 protected:
     void on_button_refresh();
+    void on_hyprland_button_clicked();
 
     Gtk::HeaderBar m_HeaderBar;
     Gtk::Box m_MainVBox;
+    Gtk::Stack m_MainStack;  // Main stack for switching between menu and content
+    Gtk::Box m_MenuBox;      // Box for the main menu
+    Gtk::Box m_ContentBox;   // Box for the main content
     Gtk::Box m_HBox;
     Gtk::TreeView m_TreeView;
     Gtk::Stack m_Stack;
     Gtk::Button m_Button_Refresh;
+    Gtk::Button m_Button_Hyprland;  // Hyprland button for the main menu
 
     // TreeModel for sidebar
     class SectionColumns : public Gtk::TreeModel::ColumnRecord {
@@ -74,7 +80,7 @@ protected:
         }
 
     protected:
-        ConfigItem(const std::string& name, const std::string& value, const std::string& desc, bool setByUser) 
+        ConfigItem(const std::string& name, const std::string& value, const std::string& desc, bool setByUser)
             : m_name(name), m_value(value), m_desc(desc), m_setByUser(setByUser) {
             // Short name is the last part after the last ':'
             size_t pos = name.rfind(':');
@@ -133,13 +139,13 @@ protected:
     void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    
+
     // Keyword-specific methods
     void setup_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_keyword_type(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_keyword_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    
+
     // Device config methods
     void setup_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_device_option(const Glib::RefPtr<Gtk::ListItem>& list_item);
@@ -147,7 +153,7 @@ protected:
     void bind_device_name(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_device_option(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void bind_device_value(const Glib::RefPtr<Gtk::ListItem>& list_item);
-    
+
     void load_data();
     void load_keywords();
     void load_device_configs();
@@ -166,15 +172,25 @@ protected:
 
 ConfigWindow::ConfigWindow()
 : m_MainVBox(Gtk::Orientation::VERTICAL),
+  m_MenuBox(Gtk::Orientation::VERTICAL),
+  m_ContentBox(Gtk::Orientation::VERTICAL),
   m_HBox(Gtk::Orientation::HORIZONTAL)
 {
     set_title("Hyprland Settings");
     set_default_size(950, 650);
-    
+
     // Setup HeaderBar
     set_titlebar(m_HeaderBar);
     m_HeaderBar.set_show_title_buttons(true);
-    
+
+    // Back button to return to main menu
+    Gtk::Button* backButton = Gtk::manage(new Gtk::Button("Back"));
+    backButton->set_tooltip_text("Return to Main Menu");
+    backButton->signal_clicked().connect([this]() {
+        m_MainStack.set_visible_child("menu");
+    });
+    m_HeaderBar.pack_start(*backButton);
+
     m_Button_Refresh.set_icon_name("view-refresh-symbolic");
     m_Button_Refresh.set_tooltip_text("Refresh Options");
     m_Button_Refresh.signal_clicked().connect(sigc::mem_fun(*this, &ConfigWindow::on_button_refresh));
@@ -186,9 +202,32 @@ ConfigWindow::ConfigWindow()
     css_provider->load_from_path("style.css");
     Gtk::StyleContext::add_provider_for_display(Gdk::Display::get_default(), css_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+    // Initialize main stack
+    m_MainStack.set_expand(true);
+    m_MainStack.set_transition_type(Gtk::StackTransitionType::SLIDE_LEFT_RIGHT);
+    m_MainVBox.append(m_MainStack);
+
+    // Create main menu
+    m_MenuBox.set_spacing(20);
+    m_MenuBox.set_halign(Gtk::Align::CENTER);
+    m_MenuBox.set_valign(Gtk::Align::CENTER);
+
+    // Create Hyprland button (square shape)
+    m_Button_Hyprland.set_label("Hyprland");
+    m_Button_Hyprland.set_size_request(200, 200);  // Square shape
+    m_Button_Hyprland.add_css_class("hyprland-button");
+    m_Button_Hyprland.signal_clicked().connect(sigc::mem_fun(*this, &ConfigWindow::on_hyprland_button_clicked));
+
+    // Add only the button to the menu box (no other text)
+    m_MenuBox.append(m_Button_Hyprland);
+
+    // Add menu to main stack
+    m_MainStack.add(m_MenuBox, "menu", "Main Menu");
+
+    // Setup content area (existing functionality)
     // HBox for Sidebar + Stack
     m_HBox.set_expand(true);
-    m_MainVBox.append(m_HBox);
+    m_ContentBox.append(m_HBox);
 
     // Setup TreeView for nested sections
     m_SectionTreeStore = Gtk::TreeStore::create(m_SectionColumns);
@@ -198,7 +237,7 @@ ConfigWindow::ConfigWindow()
     m_TreeView.get_selection()->signal_changed().connect(
         sigc::mem_fun(*this, &ConfigWindow::on_section_selected));
     m_TreeView.add_css_class("sidebar");
-    
+
     // Wrap sidebar in a scrolled window
     auto sidebarScroll = Gtk::make_managed<Gtk::ScrolledWindow>();
     sidebarScroll->set_child(m_TreeView);
@@ -213,18 +252,28 @@ ConfigWindow::ConfigWindow()
     m_Stack.set_margin(16);
     m_HBox.append(m_Stack);
 
+    // Add content box to main stack
+    m_MainStack.add(m_ContentBox, "content", "Settings");
+
     // Create keyword store
     m_KeywordStore = Gio::ListStore<KeywordItem>::create();
     m_ExecutingStore = Gio::ListStore<KeywordItem>::create();
     m_EnvVarStore = Gio::ListStore<KeywordItem>::create();
-    
+
     // Create device config store
     m_DeviceConfigStore = Gio::ListStore<DeviceConfigItem>::create();
 
-    load_data();
+    // Initially show the menu
+    m_MainStack.set_visible_child("menu");
 }
 
 ConfigWindow::~ConfigWindow() {}
+
+void ConfigWindow::on_hyprland_button_clicked() {
+    // Load the data and switch to content view
+    load_data();
+    m_MainStack.set_visible_child("content");
+}
 
 void ConfigWindow::create_section_view(const std::string& sectionPath) {
     auto listStore = Gio::ListStore<ConfigItem>::create();
@@ -588,7 +637,11 @@ void ConfigWindow::on_section_selected() {
     auto iter = m_TreeView.get_selection()->get_selected();
     if (iter) {
         Glib::ustring fullPath = (*iter)[m_SectionColumns.m_col_full_path];
-        m_Stack.set_visible_child(fullPath.raw());
+        // Only try to set visible child if it exists in the stack
+        auto child = m_Stack.get_child_by_name(fullPath.raw());
+        if (child) {
+            m_Stack.set_visible_child(*child);
+        }
     }
 }
 
@@ -806,12 +859,12 @@ void ConfigWindow::load_data() {
     m_SectionTreeStore->clear();
     m_SectionStores.clear();
     m_SectionIters.clear();
-    
+
     // Remove all children from stack
     while (auto child = m_Stack.get_first_child()) {
         m_Stack.remove(*child);
     }
-    
+
     // Load available devices first (needed for device configs view)
     load_available_devices();
 
@@ -826,13 +879,13 @@ void ConfigWindow::load_data() {
     (*keywordsIter)[m_SectionColumns.m_col_name] = "Keywords";
     (*keywordsIter)[m_SectionColumns.m_col_full_path] = "__keywords_parent__";
     m_SectionIters["__keywords_parent__"] = keywordsIter;
-    
+
     // Add "Executing" subsection under Keywords
     auto executingIter = m_SectionTreeStore->append(keywordsIter->children());
     (*executingIter)[m_SectionColumns.m_col_name] = "Executing";
     (*executingIter)[m_SectionColumns.m_col_full_path] = "__executing__";
     m_SectionIters["__executing__"] = executingIter;
-    
+
     // Add "Per-device Input Configs" subsection under Keywords
     auto deviceConfigsIter = m_SectionTreeStore->append(keywordsIter->children());
     (*deviceConfigsIter)[m_SectionColumns.m_col_name] = "Per-device Input Configs";
@@ -844,7 +897,7 @@ void ConfigWindow::load_data() {
     (*envVarsIter)[m_SectionColumns.m_col_name] = "Environment Variables";
     (*envVarsIter)[m_SectionColumns.m_col_full_path] = "__env_vars__";
     m_SectionIters["__env_vars__"] = envVarsIter;
-    
+
     // Create and populate views
     create_executing_view();
     create_device_configs_view();
@@ -855,92 +908,141 @@ void ConfigWindow::load_data() {
     // Expand Keywords section
     m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
 
-    // Read from dump file
-    std::ifstream inFile("../update/hyprland_settings_dump.txt");
-    if (inFile.is_open()) {
-        std::set<std::string> allSections;
-        std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
-        
-        std::string line;
-        std::string currentName, currentDesc, currentVal;
-        bool currentSetByUser = false;
-        
-        while (std::getline(inFile, line)) {
-            if (line == "BEGIN_ENTRY") {
-                currentName = "";
-                currentDesc = "";
-                currentVal = "";
-                currentSetByUser = false;
-            } else if (line.find("NAME: ") == 0) {
-                currentName = line.substr(6);
-            } else if (line.find("DESC: ") == 0) {
-                currentDesc = line.substr(6);
-            } else if (line.find("VALUE: ") == 0) {
-                currentVal = line.substr(7);
-            } else if (line.find("SET_BY_USER: ") == 0) {
-                currentSetByUser = (line.substr(13) == "1");
-            } else if (line == "END_ENTRY") {
-                if (!currentName.empty()) {
-                    std::string sectionPath = get_section_path(currentName);
-                    if (!sectionPath.empty()) {
-                        allSections.insert(sectionPath);
-                    }
-                    allOptions.emplace_back(currentName, currentVal, currentDesc, currentSetByUser);
-                }
-            }
-        }
-        inFile.close();
+    // Get config descriptions from hyprctl descriptions
+    std::set<std::string> allSections;
+    std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
 
-        // Create all section views under Variables in the tree
-        for (const auto& sectionPath : allSections) {
-            auto parts = split_path(sectionPath, ':');
-            std::string currentPath;
-            Gtk::TreeModel::iterator parentIter = variablesIter;
-            
-            for (size_t i = 0; i < parts.size(); ++i) {
-                if (i > 0) currentPath += ":";
-                currentPath += parts[i];
-                
-                if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
-                    auto newIter = m_SectionTreeStore->append(parentIter->children());
-                    (*newIter)[m_SectionColumns.m_col_name] = parts[i];
-                    (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
-                    m_SectionIters[currentPath] = newIter;
-                    create_section_view(currentPath);
+    FILE* pipe = popen("hyprctl descriptions -j", "r");
+    if (pipe) {
+        std::string jsonOutput;
+        char buffer[4096];
+        while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            jsonOutput += buffer;
+        }
+        pclose(pipe);
+
+        // Parse JSON using json-glib
+        GError* error = nullptr;
+        JsonParser* parser = json_parser_new();
+        
+        if (json_parser_load_from_data(parser, jsonOutput.c_str(), -1, &error)) {
+            JsonNode* root = json_parser_get_root(parser);
+            if (root && JSON_NODE_HOLDS_ARRAY(root)) {
+                JsonArray* array = json_node_get_array(root);
+                guint length = json_array_get_length(array);
+
+                for (guint i = 0; i < length; i++) {
+                    JsonObject* obj = json_array_get_object_element(array, i);
+                    
+                    const char* name = json_object_get_string_member(obj, "value");
+                    const char* desc = json_object_get_string_member(obj, "description");
+                    
+                    if (name && desc) {
+                        // Get current value from data object
+                        std::string currentVal;
+                        bool isSetByUser = false;
+                        
+                        if (json_object_has_member(obj, "data")) {
+                            JsonObject* dataObj = json_object_get_object_member(obj, "data");
+                            
+                            // Try to get "current" field first, then fall back to "value"
+                            if (json_object_has_member(dataObj, "current")) {
+                                JsonNode* currentNode = json_object_get_member(dataObj, "current");
+                                if (JSON_NODE_HOLDS_VALUE(currentNode)) {
+                                    GType type = json_node_get_value_type(currentNode);
+                                    if (type == G_TYPE_STRING) {
+                                        currentVal = json_object_get_string_member(dataObj, "current");
+                                    } else if (type == G_TYPE_INT64) {
+                                        currentVal = std::to_string(json_object_get_int_member(dataObj, "current"));
+                                    } else if (type == G_TYPE_DOUBLE) {
+                                        currentVal = std::to_string(json_object_get_double_member(dataObj, "current"));
+                                    } else if (type == G_TYPE_BOOLEAN) {
+                                        currentVal = json_object_get_boolean_member(dataObj, "current") ? "true" : "false";
+                                    }
+                                }
+                            } else if (json_object_has_member(dataObj, "value")) {
+                                JsonNode* valueNode = json_object_get_member(dataObj, "value");
+                                if (JSON_NODE_HOLDS_VALUE(valueNode)) {
+                                    GType type = json_node_get_value_type(valueNode);
+                                    if (type == G_TYPE_STRING) {
+                                        currentVal = json_object_get_string_member(dataObj, "value");
+                                    } else if (type == G_TYPE_INT64) {
+                                        currentVal = std::to_string(json_object_get_int_member(dataObj, "value"));
+                                    } else if (type == G_TYPE_DOUBLE) {
+                                        currentVal = std::to_string(json_object_get_double_member(dataObj, "value"));
+                                    } else if (type == G_TYPE_BOOLEAN) {
+                                        currentVal = json_object_get_boolean_member(dataObj, "value") ? "true" : "false";
+                                    }
+                                }
+                            }
+                            
+                            // Check if explicitly set
+                            if (json_object_has_member(dataObj, "explicit")) {
+                                isSetByUser = json_object_get_boolean_member(dataObj, "explicit");
+                            }
+                        }
+
+                        std::string sectionPath = get_section_path(name);
+                        if (!sectionPath.empty()) {
+                            allSections.insert(sectionPath);
+                        }
+                        allOptions.emplace_back(name, currentVal, desc, isSetByUser);
+                    }
                 }
-                parentIter = m_SectionIters[currentPath];
+            }
+        } else {
+            if (error) {
+                std::cerr << "JSON parsing error: " << error->message << std::endl;
+                g_error_free(error);
             }
         }
         
-        // Second pass: add options to their sections
-        for (const auto& [name, valStr, desc, setByUser] : allOptions) {
-            std::string sectionPath = get_section_path(name);
-            
-            if (sectionPath.empty()) {
-                // Root level option - add under Variables
-                if (m_SectionStores.find("") == m_SectionStores.end()) {
-                    auto iter = m_SectionTreeStore->append(variablesIter->children());
-                    (*iter)[m_SectionColumns.m_col_name] = "(root)";
-                    (*iter)[m_SectionColumns.m_col_full_path] = "";
-                    m_SectionIters[""] = iter;
-                    create_section_view("");
-                }
-            }
-            
-            if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
-                m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
-            }
-        }
-        
-        // Expand Variables section
-        m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
-    } else {
-        // Optional: Add a "Data not found" item under Variables
-        auto iter = m_SectionTreeStore->append(variablesIter->children());
-        (*iter)[m_SectionColumns.m_col_name] = "Data not found. (Reload Plugin?)";
-        (*iter)[m_SectionColumns.m_col_full_path] = "";
-        m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
+        g_object_unref(parser);
     }
+
+    // Create all section views under Variables in the tree
+    for (const auto& sectionPath : allSections) {
+        auto parts = split_path(sectionPath, ':');
+        std::string currentPath;
+        Gtk::TreeModel::iterator parentIter = variablesIter;
+
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (i > 0) currentPath += ":";
+            currentPath += parts[i];
+
+            if (m_SectionIters.find(currentPath) == m_SectionIters.end()) {
+                auto newIter = m_SectionTreeStore->append(parentIter->children());
+                (*newIter)[m_SectionColumns.m_col_name] = parts[i];
+                (*newIter)[m_SectionColumns.m_col_full_path] = currentPath;
+                m_SectionIters[currentPath] = newIter;
+                create_section_view(currentPath);
+            }
+            parentIter = m_SectionIters[currentPath];
+        }
+    }
+
+    // Second pass: add options to their sections
+    for (const auto& [name, valStr, desc, setByUser] : allOptions) {
+        std::string sectionPath = get_section_path(name);
+
+        if (sectionPath.empty()) {
+            // Root level option - add under Variables
+            if (m_SectionStores.find("") == m_SectionStores.end()) {
+                auto iter = m_SectionTreeStore->append(variablesIter->children());
+                (*iter)[m_SectionColumns.m_col_name] = "(root)";
+                (*iter)[m_SectionColumns.m_col_full_path] = "";
+                m_SectionIters[""] = iter;
+                create_section_view("");
+            }
+        }
+
+        if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
+            m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
+        }
+    }
+
+    // Expand Variables section
+    m_TreeView.expand_row(Gtk::TreePath(variablesIter), false);
 }
 
 int main(int argc, char* argv[])

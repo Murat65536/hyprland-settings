@@ -61,3 +61,18 @@ frame {
   border: none;
   box-shadow: none;
 }
+
+.hyprland-button {
+  font-size: 16pt;
+  font-weight: bold;
+  background-color: #ff6f00;
+  color: white;
+  border-radius: 15px;
+  padding: 10px;
+  margin: 20px;
+}
+
+.hyprland-button:hover {
+  background-color: #e65100;
+  color: white;
+}

@@ -1,6 +1,6 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall $(shell pkg-config --cflags gtkmm-4.0)
-LDFLAGS = $(shell pkg-config --libs gtkmm-4.0)
+CXXFLAGS = -std=c++17 -Wall $(shell pkg-config --cflags gtkmm-4.0 json-glib-1.0)
+LDFLAGS = $(shell pkg-config --libs gtkmm-4.0 json-glib-1.0)
 TARGET = hyprland-settings-gui
 SOURCE = main.cpp config_io.cpp
 
