@@ -101,3 +101,13 @@ frame {
   margin-bottom: 15px;
   color: @accent_color;
 }
+
+.status-ok {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.status-error {
+  color: #c62828;
+  font-weight: 700;
+}
