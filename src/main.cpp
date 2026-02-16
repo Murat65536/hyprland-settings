@@ -5,6 +5,8 @@
 #include <sstream>
 #include <map>
 #include <regex>
+#include <iomanip>
+#include <cmath>
 #include <cstdlib>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -77,6 +79,11 @@ protected:
         std::string m_value;
         std::string m_desc;
         bool m_setByUser = false;
+        
+        bool m_hasRange = false;
+        double m_rangeMin = 0.0;
+        double m_rangeMax = 1.0;
+        bool m_isFloat = false;
 
         static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value, const std::string& desc, bool setByUser) {
             return Glib::make_refptr_for_instance<ConfigItem>(new ConfigItem(name, value, desc, setByUser));
@@ -91,6 +98,28 @@ protected:
                 m_short_name = name.substr(pos + 1);
             } else {
                 m_short_name = name;
+            }
+
+            // Parse range from description: [0.0 - 1.0] or similar
+            std::regex rangeRegex(R"(\[\s*(-?\d+\.?\d*)\s*(?:-|\.\.|to|,)\s*(-?\d+\.?\d*)\s*\])");
+            std::smatch match;
+            if (std::regex_search(m_desc, match, rangeRegex)) {
+                try {
+                    m_rangeMin = std::stod(match[1].str());
+                    m_rangeMax = std::stod(match[2].str());
+                    m_hasRange = true;
+                    
+                    // Check if it's float or int by looking for dots in min/max
+                    m_isFloat = (match[1].str().find('.') != std::string::npos) || 
+                                (match[2].str().find('.') != std::string::npos);
+                    
+                    // Remove the range part from the description
+                    m_desc = std::regex_replace(m_desc, rangeRegex, "");
+                    // Clean up trailing/leading spaces
+                    m_desc = std::regex_replace(m_desc, std::regex(R"(^\s+|\s+$)"), "");
+                } catch (...) {
+                    m_hasRange = false;
+                }
             }
         }
     };
@@ -143,6 +172,7 @@ protected:
     std::vector<std::pair<std::string, Gtk::Widget*>> m_OrderedSections;
     bool m_scrolling_programmatically = false;
     bool m_selecting_programmatically = false;
+    bool m_binding_programmatically = false;
 
     void setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_item);
     void setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item);
@@ -168,6 +198,7 @@ protected:
     void load_device_configs();
     void load_available_devices();
     void send_update(const std::string& name, const std::string& value);
+    void send_runtime_update(const std::string& name, const std::string& value);
     void send_keyword_add(const std::string& type, const std::string& value);
     void send_device_config_add(const std::string& deviceName, const std::string& option, const std::string& value);
     void create_section_view(const std::string& sectionPath);
@@ -812,13 +843,38 @@ void ConfigWindow::setup_column_read(const Glib::RefPtr<Gtk::ListItem>& list_ite
 }
 
 void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_item) {
+    auto container = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
+    container->set_spacing(10);
+
+    // Option 1: EditableLabel (for general text)
     auto label = Gtk::make_managed<Gtk::EditableLabel>();
     label->set_halign(Gtk::Align::START);
+    label->set_hexpand(true);
+    container->append(*label);
+
+    // Option 2: Slider + Entry (for range values)
+    auto rangeBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
+    rangeBox->set_spacing(10);
+    rangeBox->set_hexpand(true);
     
+    auto slider = Gtk::make_managed<Gtk::Scale>(Gtk::Orientation::HORIZONTAL);
+    slider->set_hexpand(true);
+    slider->set_draw_value(false);
+    rangeBox->append(*slider);
+    
+    auto entry = Gtk::make_managed<Gtk::Entry>();
+    entry->set_width_chars(8);
+    entry->set_valign(Gtk::Align::CENTER);
+    rangeBox->append(*entry);
+    
+    container->append(*rangeBox);
+    list_item->set_child(*container);
+
+    // Signals for EditableLabel
     label->property_editing().signal_changed().connect([this, label, list_item]() {
         if (!label->get_editing()) {
             auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-            if (item) {
+            if (item && !item->m_hasRange) {
                 std::string newVal = label->get_text();
                 if (newVal != item->m_value) {
                     item->m_value = newVal;
@@ -828,7 +884,86 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
         }
     });
 
-    list_item->set_child(*label);
+    // Signals for Slider
+    slider->signal_value_changed().connect([this, slider, entry, list_item]() {
+        if (m_binding_programmatically) return;
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item && item->m_hasRange) {
+            double val = slider->get_value();
+            std::string valStr;
+            if (item->m_isFloat) {
+                std::stringstream ss;
+                ss << std::fixed << std::setprecision(2) << val;
+                valStr = ss.str();
+                // Remove trailing zeros and dot if possible
+                if (!valStr.empty()) {
+                    valStr.erase(valStr.find_last_not_of('0') + 1, std::string::npos);
+                    if (!valStr.empty() && valStr.back() == '.') valStr.pop_back();
+                }
+            } else {
+                valStr = std::to_string((int)std::round(val));
+            }
+            
+            if (valStr != item->m_value) {
+                entry->set_text(valStr);
+                item->m_value = valStr;
+                send_runtime_update(item->m_name, valStr);
+            }
+        }
+    });
+
+    auto dragGesture = Gtk::GestureDrag::create();
+    dragGesture->signal_drag_end().connect([this, list_item](double, double) {
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item) {
+            send_update(item->m_name, item->m_value);
+        }
+    });
+    slider->add_controller(dragGesture);
+
+    auto clickGesture = Gtk::GestureClick::create();
+    clickGesture->signal_released().connect([this, list_item](int, double, double) {
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item) {
+            send_update(item->m_name, item->m_value);
+        }
+    });
+    slider->add_controller(clickGesture);
+
+    // Signals for Entry
+    entry->signal_activate().connect([this, slider, entry, list_item]() {
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item && item->m_hasRange) {
+            try {
+                double val = std::stod(entry->get_text());
+                // Clamp
+                if (val < item->m_rangeMin) val = item->m_rangeMin;
+                if (val > item->m_rangeMax) val = item->m_rangeMax;
+                
+                slider->set_value(val);
+                // Trigger update if slider didn't change (e.g. was already at clamped value)
+                if (slider->get_value() == val) {
+                    std::string valStr;
+                    if (item->m_isFloat) {
+                        std::stringstream ss;
+                        ss << std::fixed << std::setprecision(2) << val;
+                        valStr = ss.str();
+                        valStr.erase(valStr.find_last_not_of('0') + 1, std::string::npos);
+                        if (valStr.back() == '.') valStr.pop_back();
+                    } else {
+                        valStr = std::to_string((int)std::round(val));
+                    }
+                    if (valStr != item->m_value) {
+                        item->m_value = valStr;
+                        send_update(item->m_name, valStr);
+                    }
+                    entry->set_text(valStr);
+                }
+            } catch (...) {
+                entry->set_text(item->m_value);
+            }
+        }
+    });
 }
 
 void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
@@ -841,8 +976,43 @@ void ConfigWindow::bind_name(const Glib::RefPtr<Gtk::ListItem>& list_item) {
 
 void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-    auto label = dynamic_cast<Gtk::EditableLabel*>(list_item->get_child());
-    if (item && label) label->set_text(item->m_value);
+    auto container = dynamic_cast<Gtk::Box*>(list_item->get_child());
+    if (!item || !container) return;
+
+    auto label = dynamic_cast<Gtk::EditableLabel*>(container->get_first_child());
+    auto rangeBox = dynamic_cast<Gtk::Box*>(container->get_last_child());
+    
+    if (item->m_hasRange) {
+        label->set_visible(false);
+        rangeBox->set_visible(true);
+        
+        auto slider = dynamic_cast<Gtk::Scale*>(rangeBox->get_first_child());
+        auto entry = dynamic_cast<Gtk::Entry*>(rangeBox->get_last_child());
+        
+        slider->set_range(item->m_rangeMin, item->m_rangeMax);
+        if (item->m_isFloat) {
+            slider->set_increments(0.01, 0.1);
+            slider->set_digits(2);
+        } else {
+            slider->set_increments(1.0, 10.0);
+            slider->set_digits(0);
+        }
+        
+        m_binding_programmatically = true;
+        try {
+            double val = std::stod(item->m_value);
+            slider->set_value(val);
+            entry->set_text(item->m_value);
+        } catch (...) {
+            slider->set_value(item->m_rangeMin);
+            entry->set_text(std::to_string(item->m_rangeMin));
+        }
+        m_binding_programmatically = false;
+    } else {
+        label->set_visible(true);
+        rangeBox->set_visible(false);
+        label->set_text(item->m_value);
+    }
 }
 
 void ConfigWindow::on_button_refresh() {
@@ -890,6 +1060,17 @@ void ConfigWindow::send_update(const std::string& name, const std::string& value
     if (ret != 0) {
         std::cerr << "Failed to execute hyprctl command" << std::endl;
     }
+}
+
+void ConfigWindow::send_runtime_update(const std::string& name, const std::string& value) {
+    std::string escapedValue;
+    for (char c : value) {
+        if (c == '"') escapedValue += "\\\"";
+        else escapedValue += c;
+    }
+    
+    std::string cmd = "hyprctl keyword " + name + " \"" + escapedValue + "\"";
+    std::system(cmd.c_str());
 }
 
 void ConfigWindow::send_keyword_add(const std::string& type, const std::string& value) {
