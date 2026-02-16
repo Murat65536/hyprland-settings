@@ -14,6 +14,7 @@ class DevicesPanel {
 public:
     DevicesPanel(
         const std::vector<std::string>& available_devices,
+        const std::vector<std::string>& available_options,
         const Glib::RefPtr<Gio::ListStore<DeviceConfigItem>>& device_store,
         const std::function<void(const std::string&, const std::string&, const std::string&)>& on_add_device_config,
         const sigc::slot<void(const Glib::RefPtr<Gtk::ListItem>&)>& setup_device_name,

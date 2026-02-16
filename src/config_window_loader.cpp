@@ -4,6 +4,7 @@
 #include "ui/keywords_panel.hpp"
 #include "ui/variables_panel.hpp"
 
+#include <set>
 #include <sstream>
 
 void ConfigWindow::load_data() {
@@ -28,6 +29,21 @@ void ConfigWindow::load_data() {
 
     SettingsSnapshot snapshot = m_SettingsController.load_snapshot();
     m_AvailableDevices = snapshot.available_devices;
+    m_AvailableDeviceOptions.clear();
+
+    std::set<std::string> uniqueDeviceOptions;
+    for (const auto& option : snapshot.options) {
+        if (option.name.empty()) {
+            continue;
+        }
+
+        size_t pos = option.name.rfind(':');
+        std::string shortName = (pos == std::string::npos) ? option.name : option.name.substr(pos + 1);
+        if (!shortName.empty()) {
+            uniqueDeviceOptions.insert(shortName);
+        }
+    }
+    m_AvailableDeviceOptions.assign(uniqueDeviceOptions.begin(), uniqueDeviceOptions.end());
 
     auto variablesIter = m_SectionTreeStore->append();
     (*variablesIter)[m_SectionColumns.m_col_name] = "Variables";
@@ -124,7 +140,7 @@ void ConfigWindow::load_data() {
         auto it = m_SectionStores.find(option.section_path);
         if (it != m_SectionStores.end()) {
             it->second->append(ConfigItem::create(option.name, option.value, option.description,
-                                                  option.set_by_user, option.is_boolean));
+                                                  option.set_by_user, option.value_type));
         }
     }
 

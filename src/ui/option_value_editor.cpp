@@ -3,12 +3,22 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 
 namespace {
+std::optional<long long> parse_int_truncate(const std::string& value) {
+    try {
+        double parsed = std::stod(value);
+        return static_cast<long long>(std::trunc(parsed));
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 std::string format_range_value(double val, bool is_float) {
     if (!is_float) {
-        return std::to_string((int)std::round(val));
+        return std::to_string(static_cast<long long>(std::trunc(val)));
     }
 
     std::stringstream ss;
@@ -22,6 +32,7 @@ std::string format_range_value(double val, bool is_float) {
     }
     return valStr;
 }
+
 }
 
 namespace ui {
@@ -48,13 +59,28 @@ void setup_option_value_editor(
     label->set_hexpand(true);
     container->append(*label);
 
-    auto rangeBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
-    rangeBox->set_spacing(10);
-    rangeBox->set_hexpand(true);
+    auto rangeBox = Gtk::make_managed<Gtk::Fixed>();
+    rangeBox->set_size_request(180, 32);
+    rangeBox->set_hexpand(false);
+    rangeBox->set_halign(Gtk::Align::START);
+    rangeBox->set_valign(Gtk::Align::CENTER);
+    rangeBox->add_css_class("range-editor");
+
+    auto entry = Gtk::make_managed<Gtk::Entry>();
+    entry->set_width_chars(6);
+    entry->set_size_request(70, -1);
+    entry->set_halign(Gtk::Align::START);
+    entry->set_valign(Gtk::Align::CENTER);
+    entry->add_css_class("range-entry");
+    rangeBox->put(*entry, 0, 0);
 
     auto slider = Gtk::make_managed<Gtk::Scale>(Gtk::Orientation::HORIZONTAL);
-    slider->set_hexpand(true);
+    slider->set_hexpand(false);
+    slider->set_size_request(90, -1);
+    slider->set_halign(Gtk::Align::START);
+    slider->set_valign(Gtk::Align::CENTER);
     slider->set_draw_value(false);
+    slider->add_css_class("range-slider");
 
     auto sliderScrollBlocker = Gtk::EventControllerScroll::create();
     sliderScrollBlocker->set_flags(
@@ -86,20 +112,14 @@ void setup_option_value_editor(
         },
         false);
     slider->add_controller(sliderScrollBlocker);
-
-    rangeBox->append(*slider);
-
-    auto entry = Gtk::make_managed<Gtk::Entry>();
-    entry->set_width_chars(8);
-    entry->set_valign(Gtk::Align::CENTER);
-    rangeBox->append(*entry);
+    rangeBox->put(*slider, 80, 0);
 
     container->append(*rangeBox);
     list_item->set_child(*container);
 
     boolButton->signal_clicked().connect([boolButton, list_item, send_update]() {
         auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-        if (item && item->m_isBoolean) {
+        if (item && item->m_valueType == 0) {
             const bool nextValue = (item->m_value != "true");
             item->m_value = nextValue ? "true" : "false";
             boolButton->set_label(item->m_value);
@@ -124,15 +144,29 @@ void setup_option_value_editor(
     });
 
     label->property_editing().signal_changed().connect([label, list_item, send_update]() {
-        if (!label->get_editing()) {
-            auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-            if (item && !item->m_hasRange && !item->m_isBoolean && !item->m_hasChoices) {
-                std::string newVal = label->get_text();
-                if (newVal != item->m_value) {
-                    item->m_value = newVal;
-                    send_update(item->m_name, newVal);
-                }
+        if (label->get_editing()) {
+            return;
+        }
+
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (!item || item->m_hasRange || item->m_valueType == 0 || item->m_hasChoices) {
+            return;
+        }
+
+        std::string newVal = label->get_text();
+        if (item->m_valueType == 1) {
+            auto truncated = parse_int_truncate(newVal);
+            if (!truncated.has_value()) {
+                label->set_text(item->m_value);
+                return;
             }
+            newVal = std::to_string(*truncated);
+            label->set_text(newVal);
+        }
+
+        if (newVal != item->m_value) {
+            item->m_value = newVal;
+            send_update(item->m_name, newVal);
         }
     });
 
@@ -190,6 +224,7 @@ void setup_option_value_editor(
             }
         }
     });
+
 }
 
 void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
@@ -201,19 +236,16 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
     auto boolButton = dynamic_cast<Gtk::Button*>(container->get_first_child());
     auto choiceDropDown = dynamic_cast<Gtk::DropDown*>(boolButton->get_next_sibling());
     auto label = dynamic_cast<Gtk::EditableLabel*>(choiceDropDown->get_next_sibling());
-    auto rangeBox = dynamic_cast<Gtk::Box*>(container->get_last_child());
+    auto rangeBox = dynamic_cast<Gtk::Fixed*>(label->get_next_sibling());
+    if (!boolButton || !choiceDropDown || !label || !rangeBox) return;
 
-    if (item->m_isBoolean) {
+    if (item->m_valueType == 0) {
         boolButton->set_visible(true);
         choiceDropDown->set_visible(false);
         label->set_visible(false);
         rangeBox->set_visible(false);
 
-        if (item->m_value == "1" || item->m_value == "true") {
-            item->m_value = "true";
-        } else if (item->m_value == "0" || item->m_value == "false") {
-            item->m_value = "false";
-        }
+        item->m_value = (item->m_value == "true") ? "true" : "false";
         boolButton->set_label(item->m_value);
     } else if (item->m_hasChoices) {
         boolButton->set_visible(false);
@@ -239,8 +271,15 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
         label->set_visible(false);
         rangeBox->set_visible(true);
 
-        auto slider = dynamic_cast<Gtk::Scale*>(rangeBox->get_first_child());
-        auto entry = dynamic_cast<Gtk::Entry*>(rangeBox->get_last_child());
+        auto first = rangeBox->get_first_child();
+        auto second = first ? first->get_next_sibling() : nullptr;
+        auto slider = dynamic_cast<Gtk::Scale*>(first);
+        auto entry = dynamic_cast<Gtk::Entry*>(second);
+        if (!slider || !entry) {
+            slider = dynamic_cast<Gtk::Scale*>(second);
+            entry = dynamic_cast<Gtk::Entry*>(first);
+        }
+        if (!slider || !entry) return;
 
         slider->set_range(item->m_rangeMin, item->m_rangeMax);
         if (item->m_isFloat) {
@@ -255,10 +294,10 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
         try {
             double val = std::stod(item->m_value);
             slider->set_value(val);
-            entry->set_text(item->m_value);
+            entry->set_text(format_range_value(val, item->m_isFloat));
         } catch (...) {
             slider->set_value(item->m_rangeMin);
-            entry->set_text(std::to_string(item->m_rangeMin));
+            entry->set_text(format_range_value(item->m_rangeMin, item->m_isFloat));
         }
         binding_programmatically = false;
     } else {

@@ -3,6 +3,7 @@
 namespace ui {
 DevicesPanel::DevicesPanel(
     const std::vector<std::string>& available_devices,
+    const std::vector<std::string>& available_options,
     const Glib::RefPtr<Gio::ListStore<DeviceConfigItem>>& device_store,
     const std::function<void(const std::string&, const std::string&, const std::string&)>& on_add_device_config,
     const sigc::slot<void(const Glib::RefPtr<Gtk::ListItem>&)>& setup_device_name,
@@ -36,17 +37,14 @@ DevicesPanel::DevicesPanel(
     }
 
     auto optionCombo = Gtk::make_managed<Gtk::DropDown>();
-    auto optionModel = Gtk::StringList::create({
-        "sensitivity", "accel_profile", "natural_scroll", "left_handed",
-        "scroll_method", "scroll_button", "scroll_button_lock", "scroll_factor",
-        "tap_button_map", "clickfinger_behavior", "tap-to-click", "drag_lock",
-        "tap-and-drag", "disable_while_typing", "middle_button_emulation",
-        "transform", "output", "enabled", "keybinds", "kb_layout", "kb_variant",
-        "kb_model", "kb_options", "kb_rules", "kb_file", "numlock_by_default",
-        "resolve_binds_by_sym", "repeat_rate", "repeat_delay"
-    });
+    auto optionModel = Gtk::StringList::create({});
+    for (const auto& option : available_options) {
+        optionModel->append(option);
+    }
     optionCombo->set_model(optionModel);
-    optionCombo->set_selected(0);
+    if (!available_options.empty()) {
+        optionCombo->set_selected(0);
+    }
 
     auto valueEntry = Gtk::make_managed<Gtk::Entry>();
     valueEntry->set_placeholder_text("Value...");

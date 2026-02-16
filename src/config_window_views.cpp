@@ -63,6 +63,7 @@ void ConfigWindow::create_device_configs_view() {
     const std::string sectionPath = "__device_configs__";
     m_DevicesPanel = std::make_unique<ui::DevicesPanel>(
         m_AvailableDevices,
+        m_AvailableDeviceOptions,
         m_DeviceConfigStore,
         [this](const std::string& deviceName, const std::string& option, const std::string& value) {
             send_device_config_add(deviceName, option, value);

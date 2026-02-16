@@ -10,7 +10,7 @@ struct ConfigOptionData {
     std::string value;
     std::string description;
     bool set_by_user = false;
-    bool is_boolean = false;
+    int value_type = -1;
     std::string section_path;
 };
 

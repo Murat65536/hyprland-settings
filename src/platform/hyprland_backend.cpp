@@ -6,7 +6,6 @@
 #include <iostream>
 #include <json-glib/json-glib.h>
 #include <regex>
-#include <sstream>
 
 namespace {
 bool run_capture(const std::string& cmd, std::string& output) {
@@ -171,7 +170,7 @@ SettingsSnapshot HyprlandBackend::load_snapshot() const {
         option.description = desc;
 
         if (json_object_has_member(obj, "type")) {
-            option.is_boolean = json_object_get_int_member(obj, "type") == 0;
+            option.value_type = static_cast<int>(json_object_get_int_member(obj, "type"));
         }
 
         if (json_object_has_member(obj, "data")) {
@@ -185,7 +184,7 @@ SettingsSnapshot HyprlandBackend::load_snapshot() const {
             }
         }
 
-        if (option.is_boolean) {
+        if (option.value_type == 0) {
             if (option.value == "1" || option.value == "true") {
                 option.value = "true";
             } else if (option.value == "0" || option.value == "false") {

@@ -65,6 +65,7 @@ protected:
     std::unique_ptr<ui::KeywordsPanel> m_EnvVarsPanel;
     std::unique_ptr<ui::DevicesPanel> m_DevicesPanel;
     std::vector<std::string> m_AvailableDevices;
+    std::vector<std::string> m_AvailableDeviceOptions;
     SettingsController m_SettingsController;
     std::map<std::string, Gtk::TreeModel::iterator> m_SectionIters;
 

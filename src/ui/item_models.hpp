@@ -16,7 +16,7 @@ public:
     std::string m_value;
     std::string m_desc;
     bool m_setByUser = false;
-    bool m_isBoolean = false;
+    int m_valueType = -1;
     bool m_hasChoices = false;
     std::vector<std::pair<std::string, std::string>> m_choices;
 
@@ -26,15 +26,20 @@ public:
     bool m_isFloat = false;
 
     static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value,
-                                           const std::string& desc, bool setByUser, bool isBoolean) {
+                                           const std::string& desc, bool setByUser,
+                                           int valueType) {
         return Glib::make_refptr_for_instance<ConfigItem>(
-            new ConfigItem(name, value, desc, setByUser, isBoolean));
+            new ConfigItem(name, value, desc, setByUser, valueType));
     }
 
 protected:
     ConfigItem(const std::string& name, const std::string& value, const std::string& desc,
-               bool setByUser, bool isBoolean)
-        : m_name(name), m_value(value), m_desc(desc), m_setByUser(setByUser), m_isBoolean(isBoolean) {
+               bool setByUser, int valueType)
+        : m_name(name),
+          m_value(value),
+          m_desc(desc),
+          m_setByUser(setByUser),
+          m_valueType(valueType) {
         size_t pos = name.rfind(':');
         if (pos != std::string::npos) {
             m_short_name = name.substr(pos + 1);
@@ -42,12 +47,8 @@ protected:
             m_short_name = name;
         }
 
-        if (m_isBoolean) {
-            if (m_value == "1" || m_value == "true") {
-                m_value = "true";
-            } else if (m_value == "0" || m_value == "false") {
-                m_value = "false";
-            }
+        if (m_valueType == 0) {
+            m_value = (m_value == "true") ? "true" : "false";
         }
 
         auto trim = [](std::string s) {
@@ -94,8 +95,14 @@ protected:
                 m_rangeMin = std::stod(match[1].str());
                 m_rangeMax = std::stod(match[2].str());
                 m_hasRange = true;
-                m_isFloat = (match[1].str().find('.') != std::string::npos) ||
-                            (match[2].str().find('.') != std::string::npos);
+                if (m_valueType == 2) {
+                    m_isFloat = true;
+                } else if (m_valueType == 1) {
+                    m_isFloat = false;
+                } else {
+                    m_isFloat = (match[1].str().find('.') != std::string::npos) ||
+                                (match[2].str().find('.') != std::string::npos);
+                }
                 m_desc = std::regex_replace(m_desc, rangeRegex, "");
                 m_desc = std::regex_replace(m_desc, std::regex(R"(^\s+|\s+$)"), "");
             } catch (...) {

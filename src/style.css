@@ -38,8 +38,27 @@ columnview row:selected {
 }
 
 entry { 
-  padding: 6px; 
-  border-radius: 6px; 
+  padding: 6px 10px; 
+  border-radius: 6px;
+  border: 1px solid alpha(@window_fg_color, 0.18);
+  background-color: alpha(@window_fg_color, 0.06);
+}
+
+entry:focus {
+  border: 1px solid alpha(@accent_bg_color, 0.75);
+  background-color: alpha(@accent_bg_color, 0.08);
+}
+
+editablelabel {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid alpha(@window_fg_color, 0.18);
+  background-color: alpha(@window_fg_color, 0.06);
+}
+
+editablelabel:focus-within {
+  border: 1px solid alpha(@accent_bg_color, 0.75);
+  background-color: alpha(@accent_bg_color, 0.08);
 }
 
 button { 
@@ -110,4 +129,19 @@ frame {
 .status-error {
   color: #c62828;
   font-weight: 700;
+}
+
+.range-editor {
+  min-width: 180px;
+  max-width: 180px;
+}
+
+.range-slider {
+  min-width: 90px;
+  max-width: 90px;
+}
+
+.range-entry {
+  min-width: 70px;
+  max-width: 70px;
 }
