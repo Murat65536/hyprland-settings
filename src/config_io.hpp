@@ -2,7 +2,6 @@
 #define CONFIG_IO_HPP
 
 #include <string>
-#include <vector>
 
 class ConfigIO {
 public:

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-
+#include <vector>
 
 std::string ConfigIO::getIndent(const std::string& line) {
     size_t i = 0;

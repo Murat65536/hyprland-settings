@@ -79,25 +79,78 @@ protected:
         std::string m_value;
         std::string m_desc;
         bool m_setByUser = false;
+        bool m_isBoolean = false;
+        bool m_hasChoices = false;
+        std::vector<std::pair<std::string, std::string>> m_choices;
         
         bool m_hasRange = false;
         double m_rangeMin = 0.0;
         double m_rangeMax = 1.0;
         bool m_isFloat = false;
 
-        static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value, const std::string& desc, bool setByUser) {
-            return Glib::make_refptr_for_instance<ConfigItem>(new ConfigItem(name, value, desc, setByUser));
+        static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value, const std::string& desc,
+                                               bool setByUser, bool isBoolean) {
+            return Glib::make_refptr_for_instance<ConfigItem>(new ConfigItem(name, value, desc, setByUser, isBoolean));
         }
 
     protected:
-        ConfigItem(const std::string& name, const std::string& value, const std::string& desc, bool setByUser)
-            : m_name(name), m_value(value), m_desc(desc), m_setByUser(setByUser) {
+        ConfigItem(const std::string& name, const std::string& value, const std::string& desc, bool setByUser, bool isBoolean)
+            : m_name(name), m_value(value), m_desc(desc), m_setByUser(setByUser), m_isBoolean(isBoolean) {
             // Short name is the last part after the last ':'
             size_t pos = name.rfind(':');
             if (pos != std::string::npos) {
                 m_short_name = name.substr(pos + 1);
             } else {
                 m_short_name = name;
+            }
+
+            if (m_isBoolean) {
+                if (m_value == "1" || m_value == "true") {
+                    m_value = "true";
+                } else if (m_value == "0" || m_value == "false") {
+                    m_value = "false";
+                }
+            }
+
+            auto trim = [](std::string s) {
+                s = std::regex_replace(s, std::regex(R"(^\s+|\s+$)"), "");
+                return s;
+            };
+
+            // Parse enum-like options from descriptions such as:
+            // "0 - off, 1 - always, 2 - fullscreen"
+            std::regex choiceRegex(R"((-?\d+)\s*-\s*([^,;\n]+))");
+            std::vector<std::pair<std::string, std::string>> parsedChoices;
+            std::vector<std::smatch> choiceMatches;
+            for (std::sregex_iterator it(m_desc.begin(), m_desc.end(), choiceRegex), end; it != end; ++it) {
+                const auto& match = *it;
+                std::string choiceValue = match[1].str();
+                std::string choiceLabel = trim(match[2].str());
+
+                // Avoid treating simple numeric ranges as enum labels.
+                if (!std::regex_search(choiceLabel, std::regex(R"([A-Za-z])"))) {
+                    continue;
+                }
+
+                parsedChoices.emplace_back(choiceValue, choiceLabel);
+                choiceMatches.push_back(match);
+            }
+
+            if (parsedChoices.size() >= 2 && !choiceMatches.empty()) {
+                const auto& first = choiceMatches.front();
+                const auto& last = choiceMatches.back();
+                size_t firstPos = static_cast<size_t>(first.position());
+                size_t tailPos = static_cast<size_t>(last.position() + last.length());
+
+                // Only treat this as an enum list if the match block is at the end.
+                std::string tail = m_desc.substr(tailPos);
+                if (std::regex_match(tail, std::regex(R"(\s*[.)]?\s*)"))) {
+                    m_hasChoices = true;
+                    m_choices = parsedChoices;
+
+                    m_desc = trim(m_desc.substr(0, firstPos));
+                    m_desc = std::regex_replace(m_desc, std::regex(R"([:;,.\-]\s*$)"), "");
+                }
             }
 
             // Parse range from description: [0.0 - 1.0] or similar
@@ -846,13 +899,20 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
     auto container = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     container->set_spacing(10);
 
-    // Option 1: EditableLabel (for general text)
+    auto boolButton = Gtk::make_managed<Gtk::Button>();
+    boolButton->set_halign(Gtk::Align::START);
+    boolButton->set_focus_on_click(false);
+    container->append(*boolButton);
+
+    auto choiceDropDown = Gtk::make_managed<Gtk::DropDown>();
+    choiceDropDown->set_halign(Gtk::Align::START);
+    container->append(*choiceDropDown);
+
     auto label = Gtk::make_managed<Gtk::EditableLabel>();
     label->set_halign(Gtk::Align::START);
     label->set_hexpand(true);
     container->append(*label);
 
-    // Option 2: Slider + Entry (for range values)
     auto rangeBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
     rangeBox->set_spacing(10);
     rangeBox->set_hexpand(true);
@@ -860,6 +920,42 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
     auto slider = Gtk::make_managed<Gtk::Scale>(Gtk::Orientation::HORIZONTAL);
     slider->set_hexpand(true);
     slider->set_draw_value(false);
+
+    // Prevent accidental value changes from mouse-wheel scrolling.
+    auto sliderScrollBlocker = Gtk::EventControllerScroll::create();
+    sliderScrollBlocker->set_flags(
+        Gtk::EventControllerScroll::Flags::VERTICAL |
+        Gtk::EventControllerScroll::Flags::HORIZONTAL |
+        Gtk::EventControllerScroll::Flags::DISCRETE
+    );
+    sliderScrollBlocker->set_propagation_phase(Gtk::PropagationPhase::CAPTURE);
+    sliderScrollBlocker->signal_scroll().connect(
+        [this](double dx, double dy) {
+            auto vadj = m_ContentScroll.get_vadjustment();
+            if (vadj && dy != 0.0) {
+                const double step = vadj->get_step_increment() > 0.0 ? vadj->get_step_increment() : 40.0;
+                const double lower = vadj->get_lower();
+                const double upper = vadj->get_upper() - vadj->get_page_size();
+                const double target = std::clamp(vadj->get_value() + (dy * step), lower, upper);
+                vadj->set_value(target);
+            }
+
+            auto hadj = m_ContentScroll.get_hadjustment();
+            if (hadj && dx != 0.0) {
+                const double step = hadj->get_step_increment() > 0.0 ? hadj->get_step_increment() : 40.0;
+                const double lower = hadj->get_lower();
+                const double upper = hadj->get_upper() - hadj->get_page_size();
+                const double target = std::clamp(hadj->get_value() + (dx * step), lower, upper);
+                hadj->set_value(target);
+            }
+
+            // Consume so Gtk::Scale doesn't treat wheel input as value changes.
+            return true;
+        },
+        false
+    );
+    slider->add_controller(sliderScrollBlocker);
+
     rangeBox->append(*slider);
     
     auto entry = Gtk::make_managed<Gtk::Entry>();
@@ -870,11 +966,36 @@ void ConfigWindow::setup_column_edit(const Glib::RefPtr<Gtk::ListItem>& list_ite
     container->append(*rangeBox);
     list_item->set_child(*container);
 
+    boolButton->signal_clicked().connect([this, boolButton, list_item]() {
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (item && item->m_isBoolean) {
+            const bool nextValue = (item->m_value != "true");
+            item->m_value = nextValue ? "true" : "false";
+            boolButton->set_label(item->m_value);
+            send_update(item->m_name, item->m_value);
+        }
+    });
+
+    choiceDropDown->property_selected().signal_changed().connect([this, choiceDropDown, list_item]() {
+        if (m_binding_programmatically) return;
+        auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
+        if (!item || !item->m_hasChoices) return;
+
+        auto selected = choiceDropDown->get_selected();
+        if (selected == GTK_INVALID_LIST_POSITION || selected >= item->m_choices.size()) return;
+
+        const std::string newValue = item->m_choices[selected].first;
+        if (newValue != item->m_value) {
+            item->m_value = newValue;
+            send_update(item->m_name, newValue);
+        }
+    });
+
     // Signals for EditableLabel
     label->property_editing().signal_changed().connect([this, label, list_item]() {
         if (!label->get_editing()) {
             auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-            if (item && !item->m_hasRange) {
+            if (item && !item->m_hasRange && !item->m_isBoolean && !item->m_hasChoices) {
                 std::string newVal = label->get_text();
                 if (newVal != item->m_value) {
                     item->m_value = newVal;
@@ -979,10 +1100,44 @@ void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
     auto container = dynamic_cast<Gtk::Box*>(list_item->get_child());
     if (!item || !container) return;
 
-    auto label = dynamic_cast<Gtk::EditableLabel*>(container->get_first_child());
+    auto boolButton = dynamic_cast<Gtk::Button*>(container->get_first_child());
+    auto choiceDropDown = dynamic_cast<Gtk::DropDown*>(boolButton->get_next_sibling());
+    auto label = dynamic_cast<Gtk::EditableLabel*>(choiceDropDown->get_next_sibling());
     auto rangeBox = dynamic_cast<Gtk::Box*>(container->get_last_child());
-    
-    if (item->m_hasRange) {
+
+    if (item->m_isBoolean) {
+        boolButton->set_visible(true);
+        choiceDropDown->set_visible(false);
+        label->set_visible(false);
+        rangeBox->set_visible(false);
+
+        if (item->m_value == "1" || item->m_value == "true") {
+            item->m_value = "true";
+        } else if (item->m_value == "0" || item->m_value == "false") {
+            item->m_value = "false";
+        }
+        boolButton->set_label(item->m_value);
+    } else if (item->m_hasChoices) {
+        boolButton->set_visible(false);
+        choiceDropDown->set_visible(true);
+        label->set_visible(false);
+        rangeBox->set_visible(false);
+
+        auto model = Gtk::StringList::create({});
+        guint selected = 0;
+        for (guint i = 0; i < item->m_choices.size(); ++i) {
+            model->append(item->m_choices[i].second);
+            if (item->m_choices[i].first == item->m_value) {
+                selected = i;
+            }
+        }
+        m_binding_programmatically = true;
+        choiceDropDown->set_model(model);
+        choiceDropDown->set_selected(selected);
+        m_binding_programmatically = false;
+    } else if (item->m_hasRange) {
+        boolButton->set_visible(false);
+        choiceDropDown->set_visible(false);
         label->set_visible(false);
         rangeBox->set_visible(true);
         
@@ -1009,6 +1164,8 @@ void ConfigWindow::bind_value(const Glib::RefPtr<Gtk::ListItem>& list_item) {
         }
         m_binding_programmatically = false;
     } else {
+        boolButton->set_visible(false);
+        choiceDropDown->set_visible(false);
         label->set_visible(true);
         rangeBox->set_visible(false);
         label->set_text(item->m_value);
@@ -1204,7 +1361,7 @@ void ConfigWindow::load_data() {
 
     // Get config descriptions
     std::set<std::string> allSections;
-    std::vector<std::tuple<std::string, std::string, std::string, bool>> allOptions;
+    std::vector<std::tuple<std::string, std::string, std::string, bool, bool>> allOptions;
     bool hasRootOptions = false;
 
     FILE* pipe = popen("hyprctl descriptions -j", "r");
@@ -1234,6 +1391,11 @@ void ConfigWindow::load_data() {
                     if (name && desc) {
                         std::string currentVal;
                         bool isSetByUser = false;
+                        bool isBoolean = false;
+
+                        if (json_object_has_member(obj, "type")) {
+                            isBoolean = json_object_get_int_member(obj, "type") == 0;
+                        }
                         
                         if (json_object_has_member(obj, "data")) {
                             JsonObject* dataObj = json_object_get_object_member(obj, "data");
@@ -1277,7 +1439,14 @@ void ConfigWindow::load_data() {
                         } else {
                             hasRootOptions = true;
                         }
-                        allOptions.emplace_back(name, currentVal, desc, isSetByUser);
+                        if (isBoolean) {
+                            if (currentVal == "1" || currentVal == "true") {
+                                currentVal = "true";
+                            } else if (currentVal == "0" || currentVal == "false") {
+                                currentVal = "false";
+                            }
+                        }
+                        allOptions.emplace_back(name, currentVal, desc, isSetByUser, isBoolean);
                     }
                 }
             }
@@ -1349,10 +1518,10 @@ void ConfigWindow::load_data() {
     m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
 
     // Add options to stores
-    for (const auto& [name, valStr, desc, setByUser] : allOptions) {
+    for (const auto& [name, valStr, desc, setByUser, isBoolean] : allOptions) {
         std::string sectionPath = get_section_path(name);
         if (m_SectionStores.find(sectionPath) != m_SectionStores.end()) {
-            m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser));
+            m_SectionStores[sectionPath]->append(ConfigItem::create(name, valStr, desc, setByUser, isBoolean));
         }
     }
 
