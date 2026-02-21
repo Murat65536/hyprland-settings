@@ -1,16 +1,9 @@
 #include "config_io.hpp"
-#include <iostream>
+
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <vector>
-
-std::string ConfigIO::getIndent(const std::string& line) {
-    size_t i = 0;
-    while (i < line.length() && (line[i] == ' ' || line[i] == '\t')) {
-        i++;
-    }
-    return line.substr(0, i);
-}
 
 // Helper to split option path "general:border_size" -> ["general", "border_size"]
 static std::vector<std::string> splitPath(const std::string& path) {
@@ -26,7 +19,7 @@ static std::vector<std::string> splitPath(const std::string& path) {
 bool ConfigIO::updateOption(const std::string& filePath, const std::string& optionPath, const std::string& value) {
     std::ifstream inFile(filePath);
     if (!inFile.is_open()) {
-        std::cerr << "Could not open config file for reading: " << filePath << std::endl;
+        std::cerr << "Could not open config file for reading: " << filePath << '\n';
         return false;
     }
 

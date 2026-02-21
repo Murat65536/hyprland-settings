@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <json-glib/json-glib.h>
+#include <optional>
 #include <regex>
 
 namespace {
@@ -51,6 +52,51 @@ std::string json_node_to_string(JsonObject* data_obj, const char* member) {
         return json_object_get_boolean_member(data_obj, member) ? "true" : "false";
     }
     return "";
+}
+
+std::optional<double> json_node_to_double(JsonObject* data_obj, const char* member) {
+    if (!json_object_has_member(data_obj, member)) {
+        return std::nullopt;
+    }
+
+    JsonNode* node = json_object_get_member(data_obj, member);
+    if (!node || !JSON_NODE_HOLDS_VALUE(node)) {
+        return std::nullopt;
+    }
+
+    GType type = json_node_get_value_type(node);
+    if (type == G_TYPE_DOUBLE) {
+        return json_object_get_double_member(data_obj, member);
+    }
+    if (type == G_TYPE_INT64) {
+        return static_cast<double>(json_object_get_int_member(data_obj, member));
+    }
+    if (type == G_TYPE_STRING) {
+        try {
+            return std::stod(json_object_get_string_member(data_obj, member));
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::string json_string_member_if_string(JsonObject* data_obj, const char* member) {
+    if (!json_object_has_member(data_obj, member)) {
+        return "";
+    }
+
+    JsonNode* node = json_object_get_member(data_obj, member);
+    if (!node || !JSON_NODE_HOLDS_VALUE(node)) {
+        return "";
+    }
+
+    if (json_node_get_value_type(node) != G_TYPE_STRING) {
+        return "";
+    }
+
+    return json_object_get_string_member(data_obj, member);
 }
 }
 
@@ -175,12 +221,24 @@ SettingsSnapshot HyprlandBackend::load_snapshot() const {
 
         if (json_object_has_member(obj, "data")) {
             JsonObject* data_obj = json_object_get_object_member(obj, "data");
+            if (option.value_type == 6) {
+                option.choice_values_csv = json_string_member_if_string(data_obj, "value");
+            }
+
             option.value = json_node_to_string(data_obj, "current");
             if (option.value.empty()) {
                 option.value = json_node_to_string(data_obj, "value");
             }
             if (json_object_has_member(data_obj, "explicit")) {
                 option.set_by_user = json_object_get_boolean_member(data_obj, "explicit");
+            }
+
+            auto min_value = json_node_to_double(data_obj, "min");
+            auto max_value = json_node_to_double(data_obj, "max");
+            if (min_value.has_value() && max_value.has_value()) {
+                option.has_range = true;
+                option.range_min = min_value.value();
+                option.range_max = max_value.value();
             }
         }
 

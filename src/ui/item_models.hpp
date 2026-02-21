@@ -3,7 +3,9 @@
 
 #include <gtkmm.h>
 
-#include <regex>
+#include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
@@ -14,6 +16,7 @@ public:
     std::string m_name;
     std::string m_short_name;
     std::string m_value;
+    std::string m_lastAppliedValue;
     std::string m_desc;
     bool m_setByUser = false;
     int m_valueType = -1;
@@ -27,14 +30,18 @@ public:
 
     static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value,
                                            const std::string& desc, bool setByUser,
-                                           int valueType) {
+                                           int valueType, const std::string& choiceValuesCsv = "",
+                                           bool hasRange = false,
+                                           double rangeMin = 0.0, double rangeMax = 1.0) {
         return Glib::make_refptr_for_instance<ConfigItem>(
-            new ConfigItem(name, value, desc, setByUser, valueType));
+            new ConfigItem(name, value, desc, setByUser, valueType, choiceValuesCsv,
+                           hasRange, rangeMin, rangeMax));
     }
 
 protected:
     ConfigItem(const std::string& name, const std::string& value, const std::string& desc,
-               bool setByUser, int valueType)
+               bool setByUser, int valueType, const std::string& choiceValuesCsv,
+               bool hasRange, double rangeMin, double rangeMax)
         : m_name(name),
           m_value(value),
           m_desc(desc),
@@ -51,64 +58,74 @@ protected:
             m_value = (m_value == "true") ? "true" : "false";
         }
 
-        auto trim = [](std::string s) {
-            s = std::regex_replace(s, std::regex(R"(^\s+|\s+$)"), "");
-            return s;
+        auto trim = [](const std::string& s) -> std::string {
+            size_t start = 0;
+            while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])) != 0) {
+                ++start;
+            }
+
+            size_t end = s.size();
+            while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1])) != 0) {
+                --end;
+            }
+
+            return s.substr(start, end - start);
         };
 
-        std::regex choiceRegex(R"((-?\d+)\s*-\s*([^,;\n]+))");
-        std::vector<std::pair<std::string, std::string>> parsedChoices;
-        std::vector<std::smatch> choiceMatches;
-        for (std::sregex_iterator it(m_desc.begin(), m_desc.end(), choiceRegex), end; it != end; ++it) {
-            const auto& match = *it;
-            std::string choiceValue = match[1].str();
-            std::string choiceLabel = trim(match[2].str());
-
-            if (!std::regex_search(choiceLabel, std::regex(R"([A-Za-z])"))) {
-                continue;
-            }
-
-            parsedChoices.emplace_back(choiceValue, choiceLabel);
-            choiceMatches.push_back(match);
-        }
-
-        if (parsedChoices.size() >= 2 && !choiceMatches.empty()) {
-            const auto& first = choiceMatches.front();
-            const auto& last = choiceMatches.back();
-            size_t firstPos = static_cast<size_t>(first.position());
-            size_t tailPos = static_cast<size_t>(last.position() + last.length());
-
-            std::string tail = m_desc.substr(tailPos);
-            if (std::regex_match(tail, std::regex(R"(\s*[.)]?\s*)"))) {
-                m_hasChoices = true;
-                m_choices = parsedChoices;
-
-                m_desc = trim(m_desc.substr(0, firstPos));
-                m_desc = std::regex_replace(m_desc, std::regex(R"([:;,.\-]\s*$)"), "");
-            }
-        }
-
-        std::regex rangeRegex(R"(\[\s*(-?\d+\.?\d*)\s*(?:-|\.\.|to|,)\s*(-?\d+\.?\d*)\s*\])");
-        std::smatch match;
-        if (std::regex_search(m_desc, match, rangeRegex)) {
-            try {
-                m_rangeMin = std::stod(match[1].str());
-                m_rangeMax = std::stod(match[2].str());
-                m_hasRange = true;
-                if (m_valueType == 2) {
-                    m_isFloat = true;
-                } else if (m_valueType == 1) {
-                    m_isFloat = false;
-                } else {
-                    m_isFloat = (match[1].str().find('.') != std::string::npos) ||
-                                (match[2].str().find('.') != std::string::npos);
+        if (m_valueType == 6) {
+            std::vector<std::pair<std::string, std::string>> parsedChoices;
+            size_t start = 0;
+            size_t index = 0;
+            while (start <= choiceValuesCsv.size()) {
+                const size_t end = choiceValuesCsv.find(',', start);
+                const std::string token = (end == std::string::npos)
+                    ? choiceValuesCsv.substr(start)
+                    : choiceValuesCsv.substr(start, end - start);
+                const std::string label = trim(token);
+                if (!label.empty()) {
+                    parsedChoices.emplace_back(std::to_string(index), label);
                 }
-                m_desc = std::regex_replace(m_desc, rangeRegex, "");
-                m_desc = std::regex_replace(m_desc, std::regex(R"(^\s+|\s+$)"), "");
-            } catch (...) {
-                m_hasRange = false;
+                ++index;
+                if (end == std::string::npos) {
+                    break;
+                }
+                start = end + 1;
+            }
+
+            if (!parsedChoices.empty()) {
+                m_hasChoices = true;
+                m_choices = std::move(parsedChoices);
             }
         }
+
+        if (m_valueType == 6 && m_hasChoices) {
+            const auto matchesCurrentValue = [this](const std::pair<std::string, std::string>& choice) {
+                return choice.first == m_value;
+            };
+            if (std::find_if(m_choices.begin(), m_choices.end(), matchesCurrentValue) == m_choices.end()) {
+                m_value = "0";
+                if (!m_choices.empty()) {
+                    m_value = m_choices.front().first;
+                }
+            }
+        }
+
+        m_hasRange = hasRange;
+        if (m_hasRange) {
+            m_rangeMin = rangeMin;
+            m_rangeMax = rangeMax;
+            if (m_valueType == 2) {
+                m_isFloat = true;
+            } else if (m_valueType == 1) {
+                m_isFloat = false;
+            } else {
+                const double minFrac = std::fabs(m_rangeMin - std::round(m_rangeMin));
+                const double maxFrac = std::fabs(m_rangeMax - std::round(m_rangeMax));
+                m_isFloat = minFrac > 0.0 || maxFrac > 0.0;
+            }
+        }
+
+        m_lastAppliedValue = m_value;
     }
 };
 

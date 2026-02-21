@@ -9,6 +9,7 @@
 
 void ConfigWindow::load_data() {
     m_TreeView.get_selection()->unselect_all();
+    m_OptionValues.clear();
 
     for (auto& kv : m_SectionStores) {
         kv.second->remove_all();
@@ -137,10 +138,14 @@ void ConfigWindow::load_data() {
     m_TreeView.expand_row(Gtk::TreePath(keywordsIter), false);
 
     for (const auto& option : snapshot.options) {
+        m_OptionValues[option.name] = option.value;
         auto it = m_SectionStores.find(option.section_path);
         if (it != m_SectionStores.end()) {
             it->second->append(ConfigItem::create(option.name, option.value, option.description,
-                                                  option.set_by_user, option.value_type));
+                                                  option.set_by_user, option.value_type,
+                                                  option.choice_values_csv,
+                                                  option.has_range, option.range_min,
+                                                  option.range_max));
         }
     }
 

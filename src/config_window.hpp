@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -66,6 +67,7 @@ protected:
     std::unique_ptr<ui::DevicesPanel> m_DevicesPanel;
     std::vector<std::string> m_AvailableDevices;
     std::vector<std::string> m_AvailableDeviceOptions;
+    std::unordered_map<std::string, std::string> m_OptionValues;
     SettingsController m_SettingsController;
     std::map<std::string, Gtk::TreeModel::iterator> m_SectionIters;
 

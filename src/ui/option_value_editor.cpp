@@ -123,7 +123,10 @@ void setup_option_value_editor(
             const bool nextValue = (item->m_value != "true");
             item->m_value = nextValue ? "true" : "false";
             boolButton->set_label(item->m_value);
-            send_update(item->m_name, item->m_value);
+            if (item->m_value != item->m_lastAppliedValue) {
+                send_update(item->m_name, item->m_value);
+                item->m_lastAppliedValue = item->m_value;
+            }
         }
     });
 
@@ -139,7 +142,10 @@ void setup_option_value_editor(
         const std::string newValue = item->m_choices[selected].first;
         if (newValue != item->m_value) {
             item->m_value = newValue;
-            send_update(item->m_name, newValue);
+            if (item->m_value != item->m_lastAppliedValue) {
+                send_update(item->m_name, item->m_value);
+                item->m_lastAppliedValue = item->m_value;
+            }
         }
     });
 
@@ -166,7 +172,10 @@ void setup_option_value_editor(
 
         if (newVal != item->m_value) {
             item->m_value = newVal;
-            send_update(item->m_name, newVal);
+            if (item->m_value != item->m_lastAppliedValue) {
+                send_update(item->m_name, item->m_value);
+                item->m_lastAppliedValue = item->m_value;
+            }
         }
     });
 
@@ -187,8 +196,9 @@ void setup_option_value_editor(
     auto dragGesture = Gtk::GestureDrag::create();
     dragGesture->signal_drag_end().connect([list_item, send_update](double, double) {
         auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-        if (item) {
+        if (item && item->m_hasRange && item->m_value != item->m_lastAppliedValue) {
             send_update(item->m_name, item->m_value);
+            item->m_lastAppliedValue = item->m_value;
         }
     });
     slider->add_controller(dragGesture);
@@ -196,8 +206,9 @@ void setup_option_value_editor(
     auto clickGesture = Gtk::GestureClick::create();
     clickGesture->signal_released().connect([list_item, send_update](int, double, double) {
         auto item = std::dynamic_pointer_cast<ConfigItem>(list_item->get_item());
-        if (item) {
+        if (item && item->m_hasRange && item->m_value != item->m_lastAppliedValue) {
             send_update(item->m_name, item->m_value);
+            item->m_lastAppliedValue = item->m_value;
         }
     });
     slider->add_controller(clickGesture);
@@ -215,7 +226,10 @@ void setup_option_value_editor(
                     const std::string valStr = format_range_value(val, item->m_isFloat);
                     if (valStr != item->m_value) {
                         item->m_value = valStr;
-                        send_update(item->m_name, valStr);
+                        if (item->m_value != item->m_lastAppliedValue) {
+                            send_update(item->m_name, item->m_value);
+                            item->m_lastAppliedValue = item->m_value;
+                        }
                     }
                     entry->set_text(valStr);
                 }
@@ -294,10 +308,16 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
         try {
             double val = std::stod(item->m_value);
             slider->set_value(val);
-            entry->set_text(format_range_value(val, item->m_isFloat));
+            const std::string formatted = format_range_value(val, item->m_isFloat);
+            entry->set_text(formatted);
+            item->m_value = formatted;
+            item->m_lastAppliedValue = formatted;
         } catch (...) {
             slider->set_value(item->m_rangeMin);
-            entry->set_text(format_range_value(item->m_rangeMin, item->m_isFloat));
+            const std::string formatted = format_range_value(item->m_rangeMin, item->m_isFloat);
+            entry->set_text(formatted);
+            item->m_value = formatted;
+            item->m_lastAppliedValue = formatted;
         }
         binding_programmatically = false;
     } else {

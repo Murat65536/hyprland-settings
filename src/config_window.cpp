@@ -41,14 +41,14 @@ ConfigWindow::ConfigWindow()
     } else if (std::filesystem::exists("src/style.css")) {
         css_provider->load_from_path("src/style.css");
     } else {
-        std::cerr << "Warning: style.css not found! UI might look unstyled." << std::endl;
+        std::cerr << "Warning: style.css not found! UI might look unstyled.\n";
     }
 
     auto display = Gdk::Display::get_default();
     if (display) {
         Gtk::StyleContext::add_provider_for_display(display, css_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     } else {
-        std::cerr << "Warning: No default display found for CSS!" << std::endl;
+        std::cerr << "Warning: No default display found for CSS!\n";
     }
 
     m_MainStack.set_expand(true);
