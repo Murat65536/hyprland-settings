@@ -1,12 +1,83 @@
 #include "ui/option_value_editor.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iomanip>
 #include <optional>
 #include <sstream>
 
 namespace {
+std::string trim_copy(const std::string& value) {
+    size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])) != 0) {
+        ++start;
+    }
+
+    size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0) {
+        --end;
+    }
+
+    return value.substr(start, end - start);
+}
+
+std::string collapse_whitespace(const std::string& value) {
+    std::string out;
+    out.reserve(value.size());
+    bool previous_was_space = false;
+    for (char c : value) {
+        if (std::isspace(static_cast<unsigned char>(c)) != 0) {
+            if (!previous_was_space) {
+                out.push_back(' ');
+                previous_was_space = true;
+            }
+        } else {
+            out.push_back(c);
+            previous_was_space = false;
+        }
+    }
+    return trim_copy(out);
+}
+
+bool is_digits_only(const std::string& value) {
+    return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) {
+        return std::isdigit(c) != 0;
+    });
+}
+
+bool is_hex_digits_only(const std::string& value) {
+    return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) {
+        return std::isxdigit(c) != 0;
+    });
+}
+
+std::string to_lower_ascii(const std::string& value) {
+    std::string out = value;
+    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return out;
+}
+
+std::optional<double> parse_double_strict(const std::string& value) {
+    const std::string trimmed = trim_copy(value);
+    if (trimmed.empty()) {
+        return std::nullopt;
+    }
+
+    try {
+        size_t consumed = 0;
+        double parsed = std::stod(trimmed, &consumed);
+        if (consumed != trimmed.size()) {
+            return std::nullopt;
+        }
+        return parsed;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 std::optional<long long> parse_int_truncate(const std::string& value) {
     try {
         double parsed = std::stod(value);
@@ -33,6 +104,77 @@ std::string format_range_value(double val, bool is_float) {
     return valStr;
 }
 
+std::optional<std::string> normalize_color_value(const std::string& input) {
+    std::string value = trim_copy(input);
+    if (value.empty()) {
+        return std::string();
+    }
+
+    if (is_digits_only(value)) {
+        return value;
+    }
+
+    if (value.size() > 2 && (value[0] == '0') && (value[1] == 'x' || value[1] == 'X')) {
+        const std::string hex_part = value.substr(2);
+        if (!is_hex_digits_only(hex_part)) {
+            return std::nullopt;
+        }
+        return std::string("0x") + to_lower_ascii(hex_part);
+    }
+
+    if (!value.empty() && value[0] == '#') {
+        const std::string hex_part = value.substr(1);
+        if ((hex_part.size() != 6 && hex_part.size() != 8) || !is_hex_digits_only(hex_part)) {
+            return std::nullopt;
+        }
+        return std::string("0x") + to_lower_ascii(hex_part);
+    }
+
+    if ((value.size() == 6 || value.size() == 8) && is_hex_digits_only(value)) {
+        return std::string("0x") + to_lower_ascii(value);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> normalize_gradient_value(const std::string& input) {
+    std::string value = collapse_whitespace(input);
+    if (value.empty()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+bool has_fractional_component(double value) {
+    return std::fabs(value - std::round(value)) > 0.000001;
+}
+
+std::optional<std::pair<double, double>> parse_vector_value(const std::string& input) {
+    std::string value = input;
+    std::replace(value.begin(), value.end(), ',', ' ');
+
+    std::stringstream ss(value);
+    double x = 0.0;
+    double y = 0.0;
+    if (!(ss >> x >> y)) {
+        return std::nullopt;
+    }
+
+    std::string tail;
+    if (ss >> tail) {
+        return std::nullopt;
+    }
+
+    return std::make_pair(x, y);
+}
+
+std::string format_scalar(double value, bool as_float) {
+    return format_range_value(value, as_float || has_fractional_component(value));
+}
+
+std::string format_vector_value(double x, double y, bool as_float) {
+    return format_scalar(x, as_float) + ", " + format_scalar(y, as_float);
+}
 }
 
 namespace ui {
@@ -59,8 +201,8 @@ void setup_option_value_editor(
     label->set_hexpand(true);
     container->append(*label);
 
-    auto rangeBox = Gtk::make_managed<Gtk::Fixed>();
-    rangeBox->set_size_request(180, 32);
+    auto rangeBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
+    rangeBox->set_spacing(10);
     rangeBox->set_hexpand(false);
     rangeBox->set_halign(Gtk::Align::START);
     rangeBox->set_valign(Gtk::Align::CENTER);
@@ -72,11 +214,11 @@ void setup_option_value_editor(
     entry->set_halign(Gtk::Align::START);
     entry->set_valign(Gtk::Align::CENTER);
     entry->add_css_class("range-entry");
-    rangeBox->put(*entry, 0, 0);
+    rangeBox->append(*entry);
 
     auto slider = Gtk::make_managed<Gtk::Scale>(Gtk::Orientation::HORIZONTAL);
-    slider->set_hexpand(false);
-    slider->set_size_request(90, -1);
+    slider->set_hexpand(true);
+    slider->set_size_request(120, -1);
     slider->set_halign(Gtk::Align::START);
     slider->set_valign(Gtk::Align::CENTER);
     slider->set_draw_value(false);
@@ -112,7 +254,7 @@ void setup_option_value_editor(
         },
         false);
     slider->add_controller(sliderScrollBlocker);
-    rangeBox->put(*slider, 80, 0);
+    rangeBox->append(*slider);
 
     container->append(*rangeBox);
     list_item->set_child(*container);
@@ -160,7 +302,8 @@ void setup_option_value_editor(
         }
 
         std::string newVal = label->get_text();
-        if (item->m_valueType == 1) {
+        switch (item->m_valueType) {
+        case 1: {
             auto truncated = parse_int_truncate(newVal);
             if (!truncated.has_value()) {
                 label->set_text(item->m_value);
@@ -168,6 +311,75 @@ void setup_option_value_editor(
             }
             newVal = std::to_string(*truncated);
             label->set_text(newVal);
+            break;
+        }
+        case 2: {
+            auto parsed = parse_double_strict(newVal);
+            if (!parsed.has_value()) {
+                label->set_text(item->m_value);
+                return;
+            }
+            newVal = format_scalar(*parsed, true);
+            label->set_text(newVal);
+            break;
+        }
+        case 3: {
+            newVal = collapse_whitespace(newVal);
+            label->set_text(newVal);
+            break;
+        }
+        case 4: {
+            if (newVal == "[[EMPTY]]") {
+                newVal.clear();
+                label->set_text(newVal);
+            }
+            break;
+        }
+        case 5: {
+            auto normalized = normalize_color_value(newVal);
+            if (!normalized.has_value()) {
+                label->set_text(item->m_value);
+                return;
+            }
+            newVal = *normalized;
+            label->set_text(newVal);
+            break;
+        }
+        case 7: {
+            auto normalized = normalize_gradient_value(newVal);
+            if (!normalized.has_value()) {
+                label->set_text(item->m_value);
+                return;
+            }
+            newVal = *normalized;
+            label->set_text(newVal);
+            break;
+        }
+        case 8: {
+            auto vector = parse_vector_value(newVal);
+            if (!vector.has_value()) {
+                label->set_text(item->m_value);
+                return;
+            }
+
+            double x = vector->first;
+            double y = vector->second;
+            if (item->m_hasVectorRange) {
+                x = std::clamp(x, item->m_vectorMinX, item->m_vectorMaxX);
+                y = std::clamp(y, item->m_vectorMinY, item->m_vectorMaxY);
+            }
+
+            const bool as_float = has_fractional_component(x) || has_fractional_component(y) ||
+                                  has_fractional_component(item->m_vectorMinX) ||
+                                  has_fractional_component(item->m_vectorMinY) ||
+                                  has_fractional_component(item->m_vectorMaxX) ||
+                                  has_fractional_component(item->m_vectorMaxY);
+            newVal = format_vector_value(x, y, as_float);
+            label->set_text(newVal);
+            break;
+        }
+        default:
+            break;
         }
 
         if (newVal != item->m_value) {
@@ -250,7 +462,7 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
     auto boolButton = dynamic_cast<Gtk::Button*>(container->get_first_child());
     auto choiceDropDown = dynamic_cast<Gtk::DropDown*>(boolButton->get_next_sibling());
     auto label = dynamic_cast<Gtk::EditableLabel*>(choiceDropDown->get_next_sibling());
-    auto rangeBox = dynamic_cast<Gtk::Fixed*>(label->get_next_sibling());
+    auto rangeBox = dynamic_cast<Gtk::Box*>(label->get_next_sibling());
     if (!boolButton || !choiceDropDown || !label || !rangeBox) return;
 
     if (item->m_valueType == 0) {
@@ -287,12 +499,8 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
 
         auto first = rangeBox->get_first_child();
         auto second = first ? first->get_next_sibling() : nullptr;
-        auto slider = dynamic_cast<Gtk::Scale*>(first);
-        auto entry = dynamic_cast<Gtk::Entry*>(second);
-        if (!slider || !entry) {
-            slider = dynamic_cast<Gtk::Scale*>(second);
-            entry = dynamic_cast<Gtk::Entry*>(first);
-        }
+        auto entry = dynamic_cast<Gtk::Entry*>(first);
+        auto slider = dynamic_cast<Gtk::Scale*>(second);
         if (!slider || !entry) return;
 
         slider->set_range(item->m_rangeMin, item->m_rangeMax);
@@ -325,7 +533,46 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
         choiceDropDown->set_visible(false);
         label->set_visible(true);
         rangeBox->set_visible(false);
-        label->set_text(item->m_value);
+
+        std::string displayValue = item->m_value;
+        if (item->m_valueType == 3 || item->m_valueType == 4) {
+            if (displayValue == "[[EMPTY]]") {
+                displayValue.clear();
+                item->m_value.clear();
+            }
+        } else if (item->m_valueType == 5) {
+            auto normalized = normalize_color_value(displayValue);
+            if (normalized.has_value()) {
+                displayValue = *normalized;
+                item->m_value = displayValue;
+            }
+        } else if (item->m_valueType == 7) {
+            auto normalized = normalize_gradient_value(displayValue);
+            if (normalized.has_value()) {
+                displayValue = *normalized;
+                item->m_value = displayValue;
+            }
+        } else if (item->m_valueType == 8) {
+            auto vector = parse_vector_value(displayValue);
+            if (vector.has_value()) {
+                double x = vector->first;
+                double y = vector->second;
+                if (item->m_hasVectorRange) {
+                    x = std::clamp(x, item->m_vectorMinX, item->m_vectorMaxX);
+                    y = std::clamp(y, item->m_vectorMinY, item->m_vectorMaxY);
+                }
+
+                const bool as_float = has_fractional_component(x) || has_fractional_component(y) ||
+                                      has_fractional_component(item->m_vectorMinX) ||
+                                      has_fractional_component(item->m_vectorMinY) ||
+                                      has_fractional_component(item->m_vectorMaxX) ||
+                                      has_fractional_component(item->m_vectorMaxY);
+                displayValue = format_vector_value(x, y, as_float);
+                item->m_value = displayValue;
+            }
+        }
+
+        label->set_text(displayValue);
     }
 }
 }  // namespace ui

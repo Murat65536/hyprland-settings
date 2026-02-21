@@ -15,6 +15,11 @@ struct ConfigOptionData {
     bool has_range = false;
     double range_min = 0.0;
     double range_max = 1.0;
+    bool has_vector_range = false;
+    double vector_min_x = 0.0;
+    double vector_min_y = 0.0;
+    double vector_max_x = 0.0;
+    double vector_max_y = 0.0;
     std::string section_path;
 };
 

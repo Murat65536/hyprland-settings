@@ -145,7 +145,10 @@ void ConfigWindow::load_data() {
                                                   option.set_by_user, option.value_type,
                                                   option.choice_values_csv,
                                                   option.has_range, option.range_min,
-                                                  option.range_max));
+                                                  option.range_max,
+                                                  option.has_vector_range,
+                                                  option.vector_min_x, option.vector_min_y,
+                                                  option.vector_max_x, option.vector_max_y));
         }
     }
 

@@ -27,21 +27,32 @@ public:
     double m_rangeMin = 0.0;
     double m_rangeMax = 1.0;
     bool m_isFloat = false;
+    bool m_hasVectorRange = false;
+    double m_vectorMinX = 0.0;
+    double m_vectorMinY = 0.0;
+    double m_vectorMaxX = 0.0;
+    double m_vectorMaxY = 0.0;
 
     static Glib::RefPtr<ConfigItem> create(const std::string& name, const std::string& value,
                                            const std::string& desc, bool setByUser,
                                            int valueType, const std::string& choiceValuesCsv = "",
                                            bool hasRange = false,
-                                           double rangeMin = 0.0, double rangeMax = 1.0) {
+                                           double rangeMin = 0.0, double rangeMax = 1.0,
+                                           bool hasVectorRange = false,
+                                           double vectorMinX = 0.0, double vectorMinY = 0.0,
+                                           double vectorMaxX = 0.0, double vectorMaxY = 0.0) {
         return Glib::make_refptr_for_instance<ConfigItem>(
             new ConfigItem(name, value, desc, setByUser, valueType, choiceValuesCsv,
-                           hasRange, rangeMin, rangeMax));
+                           hasRange, rangeMin, rangeMax,
+                           hasVectorRange, vectorMinX, vectorMinY, vectorMaxX, vectorMaxY));
     }
 
 protected:
     ConfigItem(const std::string& name, const std::string& value, const std::string& desc,
                bool setByUser, int valueType, const std::string& choiceValuesCsv,
-               bool hasRange, double rangeMin, double rangeMax)
+               bool hasRange, double rangeMin, double rangeMax,
+               bool hasVectorRange, double vectorMinX, double vectorMinY,
+               double vectorMaxX, double vectorMaxY)
         : m_name(name),
           m_value(value),
           m_desc(desc),
@@ -123,6 +134,14 @@ protected:
                 const double maxFrac = std::fabs(m_rangeMax - std::round(m_rangeMax));
                 m_isFloat = minFrac > 0.0 || maxFrac > 0.0;
             }
+        }
+
+        m_hasVectorRange = hasVectorRange;
+        if (m_hasVectorRange) {
+            m_vectorMinX = vectorMinX;
+            m_vectorMinY = vectorMinY;
+            m_vectorMaxX = vectorMaxX;
+            m_vectorMaxY = vectorMaxY;
         }
 
         m_lastAppliedValue = m_value;

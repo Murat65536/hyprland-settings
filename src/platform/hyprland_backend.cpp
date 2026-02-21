@@ -240,6 +240,20 @@ SettingsSnapshot HyprlandBackend::load_snapshot() const {
                 option.range_min = min_value.value();
                 option.range_max = max_value.value();
             }
+
+            if (option.value_type == 8) {
+                auto min_x = json_node_to_double(data_obj, "min_x");
+                auto min_y = json_node_to_double(data_obj, "min_y");
+                auto max_x = json_node_to_double(data_obj, "max_x");
+                auto max_y = json_node_to_double(data_obj, "max_y");
+                if (min_x.has_value() && min_y.has_value() && max_x.has_value() && max_y.has_value()) {
+                    option.has_vector_range = true;
+                    option.vector_min_x = *min_x;
+                    option.vector_min_y = *min_y;
+                    option.vector_max_x = *max_x;
+                    option.vector_max_y = *max_y;
+                }
+            }
         }
 
         if (option.value_type == 0) {
@@ -248,6 +262,9 @@ SettingsSnapshot HyprlandBackend::load_snapshot() const {
             } else if (option.value == "0" || option.value == "false") {
                 option.value = "false";
             }
+        }
+        if ((option.value_type == 3 || option.value_type == 4) && option.value == "[[EMPTY]]") {
+            option.value.clear();
         }
 
         option.section_path = hyprland::section_path_from_option_name(option.name);
