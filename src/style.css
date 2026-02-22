@@ -8,19 +8,19 @@ headerbar {
 }
 
 .sidebar { 
-  background-color: alpha(@window_fg_color, 0.05); 
+  background-color: alpha(@window_fg_color, 0.08); /* Slightly darker to verify load */
   border-right: 1px solid alpha(@window_fg_color, 0.1); 
 }
 
-.sidebar row { 
-  padding: 8px 12px; 
-  border-radius: 6px; 
-  margin: 2px 8px; 
-}
-
-.sidebar row:selected { 
-  background-color: @accent_bg_color; 
-  color: @accent_fg_color; 
+/* Broad selectors for TreeView selection */
+treeview.sidebar:selected,
+treeview.view.sidebar:selected,
+treeview.sidebar:selected:focus,
+treeview.view.sidebar:selected:focus,
+treeview.sidebar:selected:backdrop,
+treeview.view.sidebar:selected:backdrop { 
+  background-color: #3584e4; /* Standard GTK Blue */
+  color: white; 
 }
 
 columnview { 

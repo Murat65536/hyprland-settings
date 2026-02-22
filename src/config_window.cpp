@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <gtkmm/settings.h>
 
 ConfigWindow::ConfigWindow()
 : m_MainVBox(Gtk::Orientation::VERTICAL),
@@ -15,6 +16,12 @@ ConfigWindow::ConfigWindow()
   m_HBox(Gtk::Orientation::HORIZONTAL),
   m_ContentVBox(Gtk::Orientation::VERTICAL)
 {
+    // Force Adwaita theme to avoid system theme interference
+    auto settings = Gtk::Settings::get_default();
+    if (settings) {
+        settings->property_gtk_theme_name().set_value("Adwaita");
+    }
+
     set_title("Hyprland Settings");
     set_default_size(950, 650);
 
