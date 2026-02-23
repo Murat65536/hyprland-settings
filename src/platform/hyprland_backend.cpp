@@ -3,6 +3,7 @@
 #include "config_io.hpp"
 
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <json-glib/json-glib.h>
 #include <optional>
@@ -74,7 +75,7 @@ std::optional<double> json_node_to_double(JsonObject* data_obj, const char* memb
     if (type == G_TYPE_STRING) {
         try {
             return std::stod(json_object_get_string_member(data_obj, member));
-        } catch (...) {
+        } catch (const std::exception&) {
             return std::nullopt;
         }
     }
@@ -98,7 +99,7 @@ std::string json_string_member_if_string(JsonObject* data_obj, const char* membe
 
     return json_object_get_string_member(data_obj, member);
 }
-}
+}  // namespace
 
 std::string hyprland::escape_keyword_value(const std::string& value) {
     std::string escaped;
@@ -136,7 +137,7 @@ bool HyprlandBackend::apply_persistent_option(const std::string& name, const std
     std::string config_path = home ? std::string(home) + "/.config/hypr/hyprland.conf" : "hyprland.conf";
 
     if (!ConfigIO::updateOption(config_path, name, value)) {
-        std::cerr << "Failed to update config file for: " << name << std::endl;
+        std::cerr << "Failed to update config file for: " << name << '\n';
         return false;
     }
 

@@ -28,12 +28,12 @@ ConfigWindow::ConfigWindow()
     set_titlebar(m_HeaderBar);
     m_HeaderBar.set_show_title_buttons(true);
 
-    Gtk::Button* backButton = Gtk::manage(new Gtk::Button("Back"));
-    backButton->set_tooltip_text("Return to Main Menu");
-    backButton->signal_clicked().connect([this]() {
+    auto* back_button = Gtk::make_managed<Gtk::Button>("Back");
+    back_button->set_tooltip_text("Return to Main Menu");
+    back_button->signal_clicked().connect([this]() {
         m_MainStack.set_visible_child("menu");
     });
-    m_HeaderBar.pack_start(*backButton);
+    m_HeaderBar.pack_start(*back_button);
 
     m_Button_Refresh.set_icon_name("view-refresh-symbolic");
     m_Button_Refresh.set_tooltip_text("Refresh Options");
@@ -97,8 +97,10 @@ ConfigWindow::ConfigWindow()
     m_ContentVBox.set_margin(20);
     m_ContentVBox.set_spacing(40);
 
-    auto vAdj = m_ContentScroll.get_vadjustment();
-    vAdj->signal_value_changed().connect(sigc::mem_fun(*this, &ConfigWindow::on_scroll_changed));
+    auto v_adj = m_ContentScroll.get_vadjustment();
+    if (v_adj) {
+        v_adj->signal_value_changed().connect(sigc::mem_fun(*this, &ConfigWindow::on_scroll_changed));
+    }
 
     m_HBox.append(m_ContentScroll);
     m_MainStack.add(m_ContentBox, "content", "Settings");
@@ -115,8 +117,6 @@ ConfigWindow::ConfigWindow()
 
     m_MainStack.set_visible_child("menu");
 }
-
-ConfigWindow::~ConfigWindow() {}
 
 void ConfigWindow::on_hyprland_button_clicked() {
     load_data();

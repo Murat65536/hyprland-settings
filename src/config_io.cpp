@@ -5,16 +5,20 @@
 #include <sstream>
 #include <vector>
 
+namespace {
 // Helper to split option path "general:border_size" -> ["general", "border_size"]
-static std::vector<std::string> splitPath(const std::string& path) {
+std::vector<std::string> split_path(const std::string& path) {
     std::vector<std::string> parts;
     std::stringstream ss(path);
     std::string item;
     while (std::getline(ss, item, ':')) {
-        if (!item.empty()) parts.push_back(item);
+        if (!item.empty()) {
+            parts.push_back(item);
+        }
     }
     return parts;
 }
+}  // namespace
 
 bool ConfigIO::updateOption(const std::string& filePath, const std::string& optionPath, const std::string& value) {
     std::ifstream inFile(filePath);
@@ -30,8 +34,10 @@ bool ConfigIO::updateOption(const std::string& filePath, const std::string& opti
     }
     inFile.close();
 
-    auto parts = splitPath(optionPath);
-    if (parts.empty()) return false;
+    auto parts = split_path(optionPath);
+    if (parts.empty()) {
+        return false;
+    }
 
     std::string key = parts.back();
     parts.pop_back(); // Remove key, remaining are sections
@@ -51,9 +57,11 @@ bool ConfigIO::updateOption(const std::string& filePath, const std::string& opti
 
     // Write the updated content back to the file
     std::ofstream outFile(filePath);
-    if (!outFile.is_open()) return false;
+    if (!outFile.is_open()) {
+        return false;
+    }
     for (const auto& l : lines) {
-        outFile << l << "\n";
+        outFile << l << '\n';
     }
     return true;
 }

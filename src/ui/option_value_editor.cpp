@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <exception>
 #include <iomanip>
 #include <optional>
 #include <sstream>
@@ -73,7 +74,7 @@ std::optional<double> parse_double_strict(const std::string& value) {
             return std::nullopt;
         }
         return parsed;
-    } catch (...) {
+    } catch (const std::exception&) {
         return std::nullopt;
     }
 }
@@ -82,7 +83,7 @@ std::optional<long long> parse_int_truncate(const std::string& value) {
     try {
         double parsed = std::stod(value);
         return static_cast<long long>(std::trunc(parsed));
-    } catch (...) {
+    } catch (const std::exception&) {
         return std::nullopt;
     }
 }
@@ -445,7 +446,7 @@ void setup_option_value_editor(
                     }
                     entry->set_text(valStr);
                 }
-            } catch (...) {
+            } catch (const std::exception&) {
                 entry->set_text(item->m_value);
             }
         }
@@ -460,10 +461,13 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
     if (!item || !container) return;
 
     auto boolButton = dynamic_cast<Gtk::Button*>(container->get_first_child());
+    if (!boolButton) return;
     auto choiceDropDown = dynamic_cast<Gtk::DropDown*>(boolButton->get_next_sibling());
+    if (!choiceDropDown) return;
     auto label = dynamic_cast<Gtk::EditableLabel*>(choiceDropDown->get_next_sibling());
+    if (!label) return;
     auto rangeBox = dynamic_cast<Gtk::Box*>(label->get_next_sibling());
-    if (!boolButton || !choiceDropDown || !label || !rangeBox) return;
+    if (!rangeBox) return;
 
     if (item->m_valueType == 0) {
         boolButton->set_visible(true);
@@ -520,7 +524,7 @@ void bind_option_value_editor(const Glib::RefPtr<Gtk::ListItem>& list_item,
             entry->set_text(formatted);
             item->m_value = formatted;
             item->m_lastAppliedValue = formatted;
-        } catch (...) {
+        } catch (const std::exception&) {
             slider->set_value(item->m_rangeMin);
             const std::string formatted = format_range_value(item->m_rangeMin, item->m_isFloat);
             entry->set_text(formatted);

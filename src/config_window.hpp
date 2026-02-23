@@ -34,7 +34,7 @@ public:
     };
 
     ConfigWindow();
-    virtual ~ConfigWindow();
+    ~ConfigWindow() override = default;
 
 protected:
     void on_button_refresh();
